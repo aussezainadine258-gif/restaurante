@@ -1,0 +1,333 @@
+<%- include('partials/head') %>
+<body class="pagina-menu pagina-menu--social" data-mesa="<%= mesa.numero %>" data-exige-codigo="<%= exigeCodigo ? '1' : '0' %>">
+
+<div id="app-cliente">
+
+  <header class="topo-social">
+    <div class="topo-social__marca">
+      <span class="marca-logo marca-logo--pequeno" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="22" height="22">
+          <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+          <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+          <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="topo-social__nome"><%= nomeRestaurante %></span>
+    </div>
+    <div class="topo-social__mesa" aria-label="Mesa <%= mesa.numero %>">
+      <span>Mesa</span>
+      <strong><%= mesa.numero %></strong>
+    </div>
+  </header>
+
+  <!-- ------------------------------------------------------------- FEED -->
+  <section class="vista is-ativa" id="vista-feed" aria-label="Feed de pratos">
+    <div class="feed-scroll" id="feed-scroll">
+      <% if (!feed.length) { %>
+        <div class="feed-vazio">
+          <p class="eyebrow eyebrow--laranja">Feed</p>
+          <h1>O menu está a ser atualizado.</h1>
+          <p>Tente novamente dentro de instantes.</p>
+        </div>
+      <% } %>
+      <% feed.forEach((prato, indice) => { %>
+        <article class="feed-slide <%= prato.disponivel ? '' : 'feed-slide--esgotado' %>" data-prato-id="<%= prato.id %>">
+          <div class="feed-slide__fundo" style="background-image: url('<%= prato.foto %>')" aria-hidden="true"></div>
+          <% if (prato.video_url) { %>
+            <video class="feed-slide__video"
+                   data-video-feed
+                   src="<%= prato.video_url %>"
+                   poster="<%= prato.foto %>"
+                   muted loop playsinline
+                   preload="<%= indice < 2 ? 'metadata' : 'none' %>"
+                   aria-label="Vídeo de <%= prato.nome %>"></video>
+          <% } else { %>
+            <img class="feed-slide__foto"
+                 src="<%= prato.foto %>"
+                 alt="<%= prato.nome %>"
+                 width="900" height="1200"
+                 loading="<%= indice < 2 ? 'eager' : 'lazy' %>"
+                 decoding="async"
+                 <%= indice === 0 ? 'fetchpriority="high"' : '' %>>
+          <% } %>
+          <div class="feed-slide__sombra" aria-hidden="true"></div>
+
+          <% if (prato.video_url) { %>
+            <button class="feed-som" type="button" data-acao="som" aria-pressed="false"
+                    aria-label="Ativar som dos vídeos do feed">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>
+              </svg>
+            </button>
+          <% } %>
+
+          <button class="feed-gosto" type="button" data-acao="gosto" data-prato-id="<%= prato.id %>"
+                  aria-pressed="false" aria-label="Gostar de <%= prato.nome %>">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>
+            </svg>
+            <span class="feed-gosto__contagem"><%= prato.gostos %></span>
+          </button>
+
+          <div class="feed-slide__info">
+            <div class="feed-slide__linha">
+              <span class="feed-slide__tempo">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <%= prato.tempo_preparo %> min
+              </span>
+              <% prato.etiquetas.forEach((etiqueta) => { %>
+                <span class="feed-etiqueta"><%= etiqueta.rotulo %></span>
+              <% }) %>
+            </div>
+            <h2><%= prato.nome %></h2>
+            <p class="feed-slide__preco"><%= prato.preco_formatado %></p>
+            <% if (prato.descricao) { %>
+              <p class="feed-slide__descricao"><%= prato.descricao %></p>
+            <% } %>
+
+            <% if (prato.disponivel) { %>
+              <button class="feed-adicionar" type="button" data-acao="adicionar" data-prato-id="<%= prato.id %>">
+                <span>Adicionar ao pedido</span>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            <% } else { %>
+              <p class="feed-esgotado">Esgotado</p>
+            <% } %>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------- MENU -->
+  <section class="vista" id="vista-menu" aria-label="Menu do restaurante">
+    <div class="menu-social-topo">
+      <p class="eyebrow eyebrow--laranja">Menu</p>
+      <h1>O que vai pedir?</h1>
+    </div>
+
+    <div class="menu-categorias" id="menu-categorias" role="tablist" aria-label="Categorias">
+      <button class="menu-categoria is-ativa" type="button" role="tab" aria-selected="true" data-filtro="todos">Todos</button>
+      <% categorias.forEach((categoria) => { %>
+        <button class="menu-categoria" type="button" role="tab" aria-selected="false" data-filtro="<%= categoria.id %>">
+          <%= categoria.nome %>
+        </button>
+      <% }) %>
+    </div>
+
+    <div class="menu-grelha" id="menu-grelha">
+      <% categorias.forEach((categoria) => { %>
+        <% categoria.pratos.forEach((prato) => { %>
+          <article class="menu-card <%= prato.disponivel ? '' : 'menu-card--esgotado' %>"
+                   data-prato-id="<%= prato.id %>"
+                   data-categoria="<%= categoria.id %>"
+                   role="button" tabindex="0"
+                   aria-label="Ver detalhes de <%= prato.nome %>">
+            <div class="menu-card__foto">
+              <% if (prato.video_url) { %>
+                <video class="menu-card__video"
+                       data-video-card
+                       src="<%= prato.video_url %>"
+                       poster="<%= prato.foto %>"
+                       muted loop playsinline preload="none"
+                       aria-label="Vídeo de <%= prato.nome %>"></video>
+                <span class="menu-card__video-selo" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  Vídeo
+                </span>
+              <% } else { %>
+                <img src="<%= prato.foto %>" alt="<%= prato.nome %>" width="600" height="440"
+                     loading="lazy" decoding="async">
+              <% } %>
+              <% if (!prato.disponivel) { %>
+                <span class="menu-card__selo">Esgotado</span>
+              <% } %>
+            </div>
+            <div class="menu-card__corpo">
+              <h3><%= prato.nome %></h3>
+              <div class="menu-card__meta">
+                <span class="preco"><%= prato.preco_formatado %></span>
+                <span class="tempo">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                  <%= prato.tempo_preparo %> min
+                </span>
+              </div>
+              <% if (prato.etiquetas.length) { %>
+                <div class="etiquetas">
+                  <% prato.etiquetas.forEach((etiqueta) => { %>
+                    <span class="etiqueta etiqueta--<%= etiqueta.chave.replace(' ', '-') %>"><%= etiqueta.rotulo %></span>
+                  <% }) %>
+                </div>
+              <% } %>
+            </div>
+          </article>
+        <% }) %>
+      <% }) %>
+
+      <% if (!categorias.length) { %>
+        <div class="estado-vazio">
+          <p>O menu está a ser atualizado. Tente novamente dentro de instantes.</p>
+        </div>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- MINHA MESA -->
+  <section class="vista" id="vista-mesa" aria-label="A minha mesa">
+    <div class="mesa-social">
+      <div class="mesa-social__topo">
+        <p class="eyebrow eyebrow--laranja">Mesa <%= mesa.numero %></p>
+        <h1>A minha mesa</h1>
+        <p class="mesa-social__estado" id="mesa-estado">Sem pedidos</p>
+      </div>
+
+      <div id="aviso-fechada" class="aviso-mesa oculto" role="status">
+        A conta desta mesa foi fechada. Obrigado pela visita!
+      </div>
+      <div id="aviso-chamada" class="aviso-mesa oculto" role="status"></div>
+
+      <div class="mesa-cartao">
+        <div class="mesa-cartao__topo">
+          <h2>O seu pedido</h2>
+          <span id="mesa-carrinho-contagem">0 itens</span>
+        </div>
+
+        <div id="mesa-carrinho-lista" class="mesa-carrinho-lista"></div>
+
+        <div class="mesa-cartao__rodape">
+          <label class="campo" for="observacao-geral">Observação geral <span>(opcional)</span></label>
+          <textarea id="observacao-geral" class="textarea" maxlength="500" rows="2" placeholder="Ex.: trazer primeiro as bebidas"></textarea>
+          <div class="total-linha">
+            <span>Total do pedido</span>
+            <strong id="total-carrinho">0,00 MT</strong>
+          </div>
+          <button id="confirmar-pedido" class="btn btn-laranja btn-bloco btn-grande" type="button" disabled>Confirmar pedido</button>
+          <p class="nota-carrinho">Pode fazer mais pedidos durante a refeição. O total da mesa fica acumulado.</p>
+        </div>
+      </div>
+
+      <div class="mesa-cartao">
+        <div class="mesa-cartao__topo">
+          <h2>Pedidos da mesa</h2>
+          <span id="mesa-contagem-pedidos">0 pedidos</span>
+        </div>
+        <div id="mesa-pedidos" class="mesa-pedidos"></div>
+        <div class="mesa-total">
+          <span>Total acumulado</span>
+          <strong id="mesa-total">0,00 MT</strong>
+        </div>
+      </div>
+
+      <div class="acoes-servico acoes-servico--social">
+        <button id="btn-empregado" class="acao-servico" type="button" data-servico="empregado">
+          <span class="acao-servico__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+            </svg>
+          </span>
+          <span><strong>Chamar empregado</strong><small>Precisa de ajuda?</small></span>
+        </button>
+        <button id="btn-conta" class="acao-servico" type="button" data-servico="conta">
+          <span class="acao-servico__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z"/>
+              <path d="M10 8h4M10 12h4"/>
+            </svg>
+          </span>
+          <span><strong>Pedir a conta</strong><small>Fechar a mesa</small></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <nav class="nav-social" aria-label="Navegação principal">
+    <button class="nav-social__item is-ativo" type="button" data-vista="feed" aria-current="page">
+      <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="4"/><path d="M3 9h18M9 21V9"/>
+      </svg>
+      <span>Feed</span>
+    </button>
+    <button class="nav-social__item" type="button" data-vista="menu">
+      <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 5h16M4 12h16M4 19h10"/>
+      </svg>
+      <span>Menu</span>
+    </button>
+    <button class="nav-social__item nav-social__item--mesa" type="button" data-vista="mesa">
+      <span class="nav-social__icone">
+        <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/>
+        </svg>
+        <span id="nav-badge" class="nav-social__badge" hidden>0</span>
+      </span>
+      <span>Minha mesa</span>
+    </button>
+  </nav>
+</div>
+
+<!-- Detalhe do prato (folha que sobe de baixo) -->
+<dialog id="detalhe-prato" class="folha-prato" aria-labelledby="detalhe-nome">
+  <div class="folha-prato__caixa">
+    <div class="folha-prato__foto">
+      <img id="detalhe-foto" src="" alt="" width="800" height="600">
+      <video id="detalhe-video" class="oculto" controls playsinline preload="metadata"></video>
+      <button id="fechar-detalhe" class="folha-prato__fechar" type="button" aria-label="Fechar detalhe">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <span id="detalhe-selo" class="folha-prato__selo oculto">Esgotado</span>
+    </div>
+    <div class="folha-prato__corpo">
+      <div class="folha-prato__meta">
+        <span id="detalhe-tempo" class="tempo"></span>
+        <div id="detalhe-etiquetas" class="etiquetas"></div>
+      </div>
+      <h2 id="detalhe-nome"></h2>
+      <p id="detalhe-preco" class="preco"></p>
+      <p id="detalhe-descricao" class="folha-prato__descricao"></p>
+
+      <label class="campo" for="detalhe-obs">Observação <span>(opcional)</span></label>
+      <input id="detalhe-obs" class="input" type="text" maxlength="200" placeholder="Ex.: sem cebola" autocomplete="off">
+
+      <div class="folha-prato__acoes">
+        <div class="controle-qtd" aria-label="Quantidade">
+          <button type="button" data-detalhe-delta="-1" aria-label="Diminuir quantidade">−</button>
+          <span id="detalhe-quantidade" aria-live="polite">1</span>
+          <button type="button" data-detalhe-delta="1" aria-label="Aumentar quantidade">+</button>
+        </div>
+        <button id="detalhe-adicionar" class="btn btn-laranja btn-grande" type="button">Adicionar</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div id="bloqueio-mesa" class="bloqueio-mesa" role="dialog" aria-modal="true" aria-labelledby="titulo-codigo">
+  <div class="bloqueio-card">
+    <div class="bloqueio-icone" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/></svg>
+    </div>
+    <p class="eyebrow">Mesa <%= mesa.numero %></p>
+    <h1 id="titulo-codigo">Confirme a sua mesa</h1>
+    <p class="texto-suave" id="texto-codigo">Peça ao empregado o código de 4 dígitos para começar a pedir.</p>
+    <form id="form-codigo" novalidate>
+      <input id="codigo-mesa" class="input-codigo" type="text" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="4" pattern="[0-9]{4}" aria-label="Código de 4 dígitos da mesa" placeholder="••••">
+      <p id="erro-codigo" class="mensagem-erro" role="alert" hidden></p>
+      <button type="submit" id="btn-verificar" class="btn btn-laranja btn-bloco btn-grande">Entrar no menu</button>
+    </form>
+    <div id="carregando-codigo" class="carregando-codigo oculto">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>A verificar a mesa…</span>
+    </div>
+    <p class="bloqueio-nota">O código é fornecido pelo empregado ao ativar a mesa.</p>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="application/json" id="dados-pratos"><%- JSON.stringify(feed).replace(/</g, '\\u003c') %></script>
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/js/comum.js" defer></script>
+<script src="/js/menu.js" defer></script>
+</body>
+</html>

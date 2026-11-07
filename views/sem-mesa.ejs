@@ -1,0 +1,42 @@
+<%- include('partials/head') %>
+<body class="pagina-estado pagina-estado--escura">
+  <main class="estado-fundo">
+    <div class="estado-card">
+      <div class="estado-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16"/><path d="M5 10v10h14V10"/><path d="M7 10V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"/><path d="M9 14h6"/></svg>
+      </div>
+      <p class="eyebrow eyebrow--laranja">Pedidos na mesa</p>
+      <h1>Qual &eacute; a sua mesa?</h1>
+      <p>Introduza o n&uacute;mero que est&aacute; no suporte da mesa para abrir o menu. Depois, basta pedir pelo telem&oacute;vel.</p>
+
+      <form action="/menu" method="get" class="form-mesa-inicial">
+        <label class="campo" for="mesa-manual">N&uacute;mero da mesa</label>
+        <div class="form-mesa-inicial__linha">
+          <input
+            id="mesa-manual"
+            name="mesa"
+            class="input input-mesa"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            max="999"
+            placeholder="Ex.: 5"
+            autocomplete="off"
+            required
+            autofocus
+          >
+          <button class="btn btn-laranja btn-grande" type="submit">Abrir menu</button>
+        </div>
+      </form>
+
+      <div class="passos-rapidos">
+        <span><strong>1</strong> Introduza a mesa</span>
+        <span><strong>2</strong> Confirme o c&oacute;digo</span>
+        <span><strong>3</strong> Pe&ccedil;a</span>
+      </div>
+      <p class="estado-dica">O c&oacute;digo de 4 d&iacute;gitos &eacute; fornecido pelo empregado ao ativar a mesa.</p>
+    </div>
+    <p class="estado-marca"><%= restaurante %></p>
+  </main>
+</body>
+</html>

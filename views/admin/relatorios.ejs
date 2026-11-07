@@ -1,0 +1,139 @@
+<%- include('../partials/head', { cssExtra: '/css/admin.css' }) %>
+<body class="pagina-admin pagina-relatorios" data-hoje="<%= dataHoje %>">
+
+<header class="admin-topo">
+  <div class="admin-topo__marca">
+    <span class="marca-logo" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="28" height="28">
+        <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div class="admin-topo__titulo">
+      <strong data-nome-restaurante><%= restaurante %></strong>
+      <span>Relatórios de vendas</span>
+    </div>
+  </div>
+
+  <div class="admin-topo__acoes">
+    <a class="btn-topo" href="/admin">Voltar ao painel</a>
+    <a class="btn-topo" href="/admin/qrcodes">QR codes</a>
+    <div class="admin-utilizador">
+      <span><%= utilizador.papel === 'admin' ? 'Administrador' : 'Cozinha' %></span>
+      <strong><%= utilizador.nome %></strong>
+    </div>
+    <form action="/admin/logout" method="post">
+      <button type="submit" class="btn-topo btn-topo--sair">Sair</button>
+    </form>
+  </div>
+</header>
+
+<main class="admin-conteudo">
+  <div class="secao-cabecalho relatorio-cabecalho">
+    <div>
+      <p class="eyebrow">Gestão</p>
+      <h1>Relatórios</h1>
+      <p>Faturação, pratos mais vendidos e horas de maior movimento.</p>
+    </div>
+
+    <form id="form-relatorio" class="relatorio-filtro" novalidate>
+      <div>
+        <label class="campo" for="data-relatorio">Dia do relatório</label>
+        <input class="input" id="data-relatorio" name="data" type="date" value="<%= dataHoje %>" max="<%= dataHoje %>">
+      </div>
+      <button type="submit" id="btn-atualizar-relatorio" class="btn btn-laranja">Ver relatório</button>
+      <button type="button" id="btn-hoje" class="btn btn-contorno">Hoje</button>
+    </form>
+  </div>
+
+  <div id="relatorio-erro" class="alerta alerta--erro alerta--pagina" role="status" hidden></div>
+
+  <section class="resumo-cartoes relatorio-resumo" aria-label="Resumo do dia">
+    <article class="resumo-card">
+      <span>Receita do dia</span>
+      <strong id="relatorio-receita">—</strong>
+    </article>
+    <article class="resumo-card">
+      <span>Pedidos</span>
+      <strong id="relatorio-pedidos">—</strong>
+    </article>
+    <article class="resumo-card">
+      <span>Ticket médio</span>
+      <strong id="relatorio-ticket">—</strong>
+    </article>
+    <article class="resumo-card">
+      <span>Artigos vendidos</span>
+      <strong id="relatorio-artigos">—</strong>
+    </article>
+    <article class="resumo-card resumo-card--alerta">
+      <span>Hora de pico</span>
+      <strong id="relatorio-hora-pico">—</strong>
+    </article>
+  </section>
+
+  <p class="relatorio-legenda" id="relatorio-legenda">A carregar dados do dia…</p>
+
+  <div class="relatorio-grelha">
+    <section class="bloco relatorio-painel relatorio-painel--largo">
+      <header class="relatorio-painel__topo">
+        <div>
+          <h2>Receita dos últimos 7 dias</h2>
+          <p>Pedidos não cancelados, em meticais.</p>
+        </div>
+        <span class="pill pill--laranja" id="relatorio-periodo">7 dias</span>
+      </header>
+      <div class="relatorio-grafico">
+        <canvas id="grafico-receita" role="img" aria-label="Gráfico de receita dos últimos sete dias"></canvas>
+      </div>
+    </section>
+
+    <section class="bloco relatorio-painel">
+      <header class="relatorio-painel__topo">
+        <div>
+          <h2>Horas de pico</h2>
+          <p>Número de pedidos por hora no dia selecionado.</p>
+        </div>
+      </header>
+      <div class="relatorio-grafico">
+        <canvas id="grafico-horas" role="img" aria-label="Gráfico de pedidos por hora"></canvas>
+      </div>
+    </section>
+
+    <section class="bloco relatorio-painel">
+      <header class="relatorio-painel__topo">
+        <div>
+          <h2>Pratos mais vendidos</h2>
+          <p>Quantidade vendida no dia selecionado.</p>
+        </div>
+      </header>
+      <div class="relatorio-grafico relatorio-grafico--pratos">
+        <canvas id="grafico-pratos" role="img" aria-label="Gráfico de pratos mais vendidos"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <section class="bloco">
+    <header class="bloco__topo">
+      <div>
+        <h2>Detalhe dos pratos</h2>
+        <p class="bloco__subtitulo">Receita gerada por cada prato no dia selecionado.</p>
+      </div>
+    </header>
+    <div id="tabela-pratos" class="tabela-relatorio">
+      <p class="estado-carregando"><span class="spinner"></span> A carregar…</p>
+    </div>
+  </section>
+
+  <p class="relatorio-nota">
+    Os pedidos cancelados não entram nos totais. As datas e horas seguem o fuso de Africa/Maputo.
+  </p>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/vendor/chart.umd.js" defer></script>
+<script src="/js/comum.js" defer></script>
+<script src="/js/relatorios.js" defer></script>
+</body>
+</html>

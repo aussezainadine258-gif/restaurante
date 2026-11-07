@@ -1,0 +1,73 @@
+<%- include('partials/head', { cssExtra: '/css/cozinha.css' }) %>
+<body class="pagina-cozinha">
+
+<header class="cozinha-topo">
+  <div class="cozinha-marca">
+    <span class="marca-logo" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="32" height="32">
+        <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div class="cozinha-marca__texto">
+      <strong><%= restaurante %></strong>
+      <span>Cozinha · ecrã de preparo</span>
+    </div>
+  </div>
+
+  <div class="cozinha-topo__acoes">
+    <span class="cozinha-ligacao" id="cozinha-ligacao"><span class="ponto-vivo"></span> Em tempo real</span>
+    <span class="cozinha-relogio" id="cozinha-relogio" aria-label="Hora atual">--:--</span>
+    <% if (utilizador && utilizador.papel === 'admin') { %>
+      <a class="cozinha-topo__botao" href="/admin">Painel</a>
+    <% } %>
+    <div class="cozinha-utilizador">
+      <span><%= utilizador.nome %></span>
+      <form action="/admin/logout" method="post">
+        <button type="submit" class="cozinha-topo__botao cozinha-topo__botao--sair">Sair</button>
+      </form>
+    </div>
+  </div>
+</header>
+
+<main class="cozinha-conteudo">
+  <section class="cozinha-resumo" aria-label="Resumo da cozinha">
+    <article class="cozinha-resumo__cartao">
+      <span>Recebidos</span>
+      <strong id="cozinha-recebidos">0</strong>
+    </article>
+    <article class="cozinha-resumo__cartao">
+      <span>Em preparo</span>
+      <strong id="cozinha-preparo">0</strong>
+    </article>
+    <article class="cozinha-resumo__cartao cozinha-resumo__cartao--alerta" id="cozinha-cartao-atrasados">
+      <span>Atrasados</span>
+      <strong id="cozinha-atrasados">0</strong>
+    </article>
+    <article class="cozinha-resumo__cartao">
+      <span>Em ecrã</span>
+      <strong id="cozinha-total">0</strong>
+    </article>
+  </section>
+
+  <div class="cozinha-cabecalho">
+    <div>
+      <p class="cozinha-eyebrow">Produção</p>
+      <h1>Pedidos na cozinha</h1>
+    </div>
+    <p class="cozinha-cabecalho__nota">Os pedidos prontos saem automaticamente do ecrã.</p>
+  </div>
+
+  <section id="lista-cozinha" class="lista-cozinha" aria-live="polite" aria-busy="true">
+    <div class="cozinha-carregando"><span class="spinner"></span> A carregar pedidos…</div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/js/comum.js" defer></script>
+<script src="/js/cozinha.js" defer></script>
+</body>
+</html>

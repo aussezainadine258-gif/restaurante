@@ -1,0 +1,119 @@
+<%- include('partials/head') %>
+<% const passos = ['Recebido', 'Em preparo', 'Pronto', 'Entregue']; const indiceAtual = passos.indexOf(resumo.estado_atual); const percentagem = resumo.estado_atual === 'Entregue' ? 100 : indiceAtual < 0 ? 0 : Math.round((indiceAtual / 3) * 100); %>
+<body class="pagina-acompanhar" data-token="<%= token %>" data-mesa="<%= resumo.mesa.numero %>">
+
+<header class="topo-acompanhar">
+  <a class="topo-acompanhar__marca" href="/menu?mesa=<%= resumo.mesa.numero %>" aria-label="Voltar ao menu">
+    <span class="marca-logo marca-logo--pequeno" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="24" height="24">
+        <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span><%= restaurante %></span>
+  </a>
+  <div class="mesa-chip mesa-chip--pequeno"><span>Mesa</span><strong><%= resumo.mesa.numero %></strong></div>
+</header>
+
+<main class="conteudo-acompanhar">
+  <div id="banner-fechado" class="banner banner--preto <%= resumo.aberta ? 'oculto' : '' %>">
+    <span class="banner__icone" aria-hidden="true">✓</span>
+    <div>
+      <strong>Conta fechada</strong>
+      <p>Obrigado pela sua visita. Pode voltar a pedir quando a mesa for reaberta.</p>
+    </div>
+  </div>
+
+  <div id="banner-cancelado" class="banner banner--laranja <%= resumo.estado_atual === 'Cancelado' ? '' : 'oculto' %>">
+    <span class="banner__icone" aria-hidden="true">!</span>
+    <div>
+      <strong>Pedido cancelado</strong>
+      <p>Fale com um empregado se precisar de ajuda.</p>
+    </div>
+  </div>
+
+  <section class="cartao-conta" aria-labelledby="titulo-conta">
+    <div class="cartao-conta__topo">
+      <div>
+        <p class="eyebrow">A sua conta</p>
+        <h1 id="titulo-conta">Mesa <%= resumo.mesa.numero %></h1>
+      </div>
+      <span id="estado-atual" class="estado estado--<%= slugify(resumo.estado_atual) %>"><%= resumo.estado_atual %></span>
+    </div>
+
+    <div class="cartao-conta__numeros">
+      <div>
+        <span>Total acumulado</span>
+        <strong id="total-conta"><%= resumo.total_formatado %></strong>
+      </div>
+      <div>
+        <span>Pedidos</span>
+        <strong id="contagem-pedidos"><%= resumo.total_pedidos %></strong>
+      </div>
+    </div>
+
+    <div class="progresso" id="progresso">
+      <div class="progresso__barra" aria-hidden="true"><span id="progresso-preenchimento" style="width: <%= percentagem %>%"></span></div>
+      <ol class="progresso__passos">
+        <% passos.forEach((passo, indice) => { %>
+          <li class="progresso__passo <%= indice < indiceAtual ? 'concluido' : indice === indiceAtual ? 'atual' : '' %>" <%= indice === indiceAtual ? 'aria-current="step"' : '' %>>
+            <span class="progresso__circulo"><%= indice + 1 %></span>
+            <span class="progresso__rotulo"><%= passo %></span>
+          </li>
+        <% }) %>
+      </ol>
+    </div>
+
+    <div id="chamada-pendente" class="chamada-pendente <%= resumo.chamada_pendente ? '' : 'oculto' %>">
+      <span class="spinner spinner--pequeno" aria-hidden="true"></span>
+      <span id="chamada-pendente-texto">
+        <% if (resumo.chamada_pendente) { %>
+          <%= resumo.chamada_pendente.tipo === 'conta' ? 'Pedido de conta enviado. Um empregado está a caminho.' : 'Empregado chamado. Aguarde um momento.' %>
+        <% } %>
+      </span>
+    </div>
+  </section>
+
+  <div class="acoes-acompanhar">
+    <a id="link-pedir-mais" href="/menu?mesa=<%= resumo.mesa.numero %>" class="btn btn-laranja btn-grande <%= resumo.aberta ? '' : 'oculto' %>">Pedir mais</a>
+    <button id="btn-empregado" class="btn btn-contorno btn-grande" type="button">Chamar empregado</button>
+    <button id="btn-conta" class="btn btn-preto btn-grande" type="button">Pedir a conta</button>
+  </div>
+
+  <section class="secao-pedidos" aria-labelledby="titulo-pedidos">
+    <div class="secao-pedidos__topo">
+      <h2 id="titulo-pedidos">Os seus pedidos</h2>
+      <span class="atualizacao"><span class="ponto-vivo" aria-hidden="true"></span> Em tempo real</span>
+    </div>
+    <div id="lista-pedidos" class="lista-pedidos">
+      <% if (!resumo.pedidos.length) { %>
+        <div class="estado-vazio">
+          <div class="estado-vazio__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+          </div>
+          <p>Ainda não fez nenhum pedido.</p>
+          <a href="/menu?mesa=<%= resumo.mesa.numero %>" class="btn btn-laranja">Ver o menu</a>
+        </div>
+      <% } %>
+      <% resumo.pedidos.forEach((pedido) => { %>
+        <%- include('partials/pedido-cliente', { pedido }) %>
+      <% }) %>
+    </div>
+  </section>
+
+  <p class="nota-acompanhar">Esta página atualiza-se automaticamente. Pode mantê-la aberta.</p>
+</main>
+
+<footer class="rodape-cliente rodape-cliente--claro">
+  <span><%= restaurante %></span>
+  <span>Preços em Meticais (MZN)</span>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/js/comum.js" defer></script>
+<script src="/js/acompanhar.js" defer></script>
+</body>
+</html>

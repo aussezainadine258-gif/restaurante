@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="560" viewBox="0 0 800 560">
+  <rect width="800" height="560" fill="#111111"/>
+  <circle cx="640" cy="430" r="290" fill="#FF6B00" opacity="0.18"/>
+  <circle cx="640" cy="430" r="170" fill="none" stroke="#FF6B00" stroke-width="3" opacity="0.65"/>
+  <circle cx="640" cy="430" r="95" fill="#FF6B00" opacity="0.22"/>
+  <text x="60" y="110" fill="#FF6B00" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" letter-spacing="5">SLEY</text>
+  <text x="60" y="250" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700">Sem fotografia</text>
+  <text x="60" y="300" fill="#FFFFFF" fill-opacity="0.6" font-family="Arial, Helvetica, sans-serif" font-size="22">Adicione uma imagem no painel.</text>
+  <rect x="60" y="350" width="90" height="7" rx="3" fill="#FF6B00"/>
+</svg>

@@ -1,0 +1,41 @@
+<%- include('../partials/head', { cssExtra: '/css/admin.css' }) %>
+<body class="pagina-qrcodes">
+  <header class="qr-toolbar no-print">
+    <div class="qr-toolbar__marca">
+      <span class="marca-logo marca-logo--pequeno" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="24" height="24">
+          <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+          <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+          <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <div>
+        <strong><%= restaurante %></strong>
+        <span>QR codes das mesas</span>
+      </div>
+    </div>
+    <div class="qr-toolbar__acoes">
+      <a href="/admin" class="btn btn-contorno">Voltar ao painel</a>
+      <button type="button" id="btn-imprimir" class="btn btn-laranja">Imprimir todos</button>
+    </div>
+  </header>
+
+  <p class="qr-aviso no-print">
+    Layout A4 · 10 QR codes por folha. O endereço dos links é <strong><%= baseUrl %></strong>.
+    Confirme o <code>BASE_URL</code> no ficheiro <code>.env</code> antes de imprimir.
+  </p>
+
+  <main class="qr-folha">
+    <% mesas.forEach((mesa) => { %>
+      <article class="qr-cartao">
+        <span class="qr-cartao__restaurante"><%= restaurante %></span>
+        <img src="<%= mesa.imagem %>" alt="QR code para a Mesa <%= mesa.numero %>" width="700" height="700">
+        <h2>Mesa <span><%= mesa.numero %></span></h2>
+        <p>Escaneie para ver o menu e pedir</p>
+      </article>
+    <% }) %>
+  </main>
+
+  <script src="/js/qrcodes.js" defer></script>
+</body>
+</html>

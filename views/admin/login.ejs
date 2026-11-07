@@ -1,0 +1,71 @@
+<%- include('../partials/head', { cssExtra: '/css/admin.css' }) %>
+<body class="pagina-auth">
+  <main class="auth-wrap">
+    <section class="auth-lado">
+      <div class="auth-marca">
+        <span class="marca-logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="30" height="30">
+            <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+            <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+            <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <div>
+          <strong><%= restaurante %></strong>
+          <span>Painel da gerência</span>
+        </div>
+      </div>
+
+      <div class="auth-discurso">
+        <p class="eyebrow eyebrow--laranja">Tudo num só ecrã</p>
+        <h1>Pedidos, mesas e menu <span>em tempo real.</span></h1>
+        <p>Acompanhe a operação do restaurante, ative mesas e mantenha o menu sempre atualizado.</p>
+      </div>
+
+      <ul class="auth-vantagens">
+        <li><span>01</span> Pedidos e chamadas em tempo real</li>
+        <li><span>02</span> Menu com fotografias e disponibilidade</li>
+        <li><span>03</span> QR codes prontos a imprimir</li>
+      </ul>
+
+      <p class="auth-assinatura">Feito para restaurantes em Moçambique · MZN</p>
+    </section>
+
+    <section class="auth-painel">
+      <div class="auth-card">
+        <p class="eyebrow">Área reservada</p>
+        <h2>Entrar no painel</h2>
+        <p class="auth-intro">Use as credenciais fornecidas pela gerência do restaurante.</p>
+
+        <% if (erro) { %>
+          <div class="alerta alerta--erro" role="alert"><%= erro %></div>
+        <% } %>
+        <% if (saiu) { %>
+          <div class="alerta alerta--ok" role="status">Sessão terminada com segurança.</div>
+        <% } %>
+        <% if (flash) { %>
+          <div class="alerta alerta--<%= flash.tipo === 'sucesso' ? 'ok' : 'erro' %>" role="status"><%= flash.mensagem %></div>
+        <% } %>
+
+        <form action="/admin/login" method="post" class="auth-form" autocomplete="on">
+          <div>
+            <label class="campo" for="username">Utilizador</label>
+            <input class="input" id="username" name="username" type="text" value="<%= username %>" autocomplete="username" required autofocus>
+          </div>
+          <div>
+            <label class="campo" for="password">Password</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn btn-laranja btn-bloco btn-grande">Entrar</button>
+        </form>
+
+        <div class="auth-rodape">
+          <a href="/menu">Ver menu do cliente</a>
+          <span>Preços em MZN</span>
+        </div>
+      </div>
+      <p class="auth-nota">Se não tiver acesso, contacte o responsável pelo restaurante.</p>
+    </section>
+  </main>
+</body>
+</html>

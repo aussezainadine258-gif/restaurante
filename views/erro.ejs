@@ -1,0 +1,25 @@
+<%- include('partials/head') %>
+<body class="pagina-erro">
+  <main class="erro-wrap">
+    <a class="erro-marca" href="/">
+      <span class="marca-logo marca-logo--pequeno" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="24" height="24">
+          <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+          <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+          <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <%= restaurante %>
+    </a>
+    <div class="erro-card">
+      <span class="erro-codigo"><%= status %></span>
+      <h1><%= titulo %></h1>
+      <p><%= mensagem %></p>
+      <div class="erro-acoes">
+        <a href="/" class="btn btn-laranja btn-grande">Ir para o início</a>
+        <a href="/menu" class="btn btn-contorno btn-grande">Abrir menu</a>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

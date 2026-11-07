@@ -1,0 +1,32 @@
+<% const classe = slugify(pedido.estado); %>
+<article class="pedido-card pedido-card--<%= classe %>" data-pedido="<%= pedido.id %>">
+  <header class="pedido-card__topo">
+    <div class="pedido-card__ident">
+      <strong>Pedido #<%= pedido.id %></strong>
+      <span><%= horaLocal(pedido.criado_em) %></span>
+    </div>
+    <span class="estado estado--<%= classe %>"><%= pedido.estado %></span>
+  </header>
+  <ul class="pedido-card__itens">
+    <% pedido.itens.forEach((item) => { %>
+      <li>
+        <span class="item-qtd"><%= item.quantidade %>×</span>
+        <span class="item-nome">
+          <%= item.nome %>
+          <% if (item.observacao) { %><small class="item-obs"><%= item.observacao %></small><% } %>
+        </span>
+        <span class="item-subtotal"><%= item.subtotal_formatado %></span>
+      </li>
+    <% }) %>
+  </ul>
+  <% if (pedido.observacoes) { %>
+    <p class="pedido-card__obs"><strong>Observação:</strong> <%= pedido.observacoes %></p>
+  <% } %>
+  <footer class="pedido-card__rodape">
+    <span class="pedido-card__previsao">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <%= pedido.tempo_previsto_min %> min previstos
+    </span>
+    <strong><%= pedido.total_formatado %></strong>
+  </footer>
+</article>

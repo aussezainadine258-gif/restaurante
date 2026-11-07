@@ -1,0 +1,605 @@
+/* ==========================================================================
+   Ecrã da cozinha — fundo preto, texto branco e destaques laranja
+   ========================================================================== */
+
+.pagina-cozinha {
+  min-height: 100vh;
+  background: var(--preto);
+  color: var(--branco);
+}
+
+/* ------------------------------------------------------------------- topo */
+
+.cozinha-topo {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: calc(14px + var(--topo-seguro)) clamp(16px, 3vw, 34px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  border-top: 4px solid var(--laranja);
+  background: var(--preto);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.cozinha-marca {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+
+.cozinha-marca__texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cozinha-marca__texto strong {
+  max-width: 48vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(1rem, 2.2vw, 1.3rem);
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+.cozinha-marca__texto span {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cozinha-topo__acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cozinha-ligacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.68rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.cozinha-ligacao.offline {
+  color: rgba(255, 255, 255, 0.5);
+  border-color: var(--laranja);
+}
+
+.cozinha-ligacao.offline .ponto-vivo {
+  background: var(--laranja);
+  box-shadow: none;
+  animation: none;
+}
+
+.cozinha-relogio {
+  font-size: clamp(1.1rem, 2.4vw, 1.5rem);
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cozinha-topo__botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--branco);
+  font-size: 0.76rem;
+  font-weight: 750;
+  white-space: nowrap;
+  transition: background var(--transicao), border-color var(--transicao), color var(--transicao);
+}
+
+.cozinha-topo__botao:hover {
+  border-color: var(--laranja);
+  background: rgba(255, 107, 0, 0.18);
+}
+
+.cozinha-topo__botao--sair {
+  border-color: var(--laranja);
+  background: var(--laranja);
+}
+
+.cozinha-topo__botao--sair:hover {
+  background: var(--branco);
+  border-color: var(--branco);
+  color: var(--preto);
+}
+
+.cozinha-utilizador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.cozinha-utilizador > span {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+/* ---------------------------------------------------------------- conteúdo */
+
+.cozinha-conteudo {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 32px) clamp(16px, 3vw, 34px) calc(60px + var(--fundo-seguro));
+}
+
+.cozinha-resumo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: clamp(20px, 3vw, 30px);
+}
+
+.cozinha-resumo__cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: clamp(14px, 2.5vw, 20px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.cozinha-resumo__cartao span {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.cozinha-resumo__cartao strong {
+  color: var(--branco);
+  font-size: clamp(1.65rem, 4vw, 2.4rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cozinha-resumo__cartao--alerta {
+  border-color: rgba(255, 107, 0, 0.55);
+}
+
+.cozinha-resumo__cartao--alerta strong {
+  color: var(--laranja);
+}
+
+.cozinha-resumo__cartao--alerta.is-alerta {
+  border-color: var(--laranja);
+  background: var(--laranja-suave);
+}
+
+.cozinha-resumo__cartao--alerta.is-alerta strong {
+  animation: pulso-numero 1.4s ease-in-out infinite;
+}
+
+@keyframes pulso-numero {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.cozinha-cabecalho {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cozinha-eyebrow {
+  color: var(--laranja);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.cozinha-cabecalho h1 {
+  margin-top: 3px;
+  font-size: clamp(1.6rem, 3.6vw, 2.3rem);
+  font-weight: 900;
+}
+
+.cozinha-cabecalho__nota {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------------ lista */
+
+.lista-cozinha {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(12px, 2vw, 18px);
+}
+
+.cozinha-carregando,
+.cozinha-vazio {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 180px;
+  padding: 30px 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 18px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.cozinha-vazio {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cozinha-vazio strong {
+  color: var(--branco);
+  font-size: 1.1rem;
+}
+
+.cozinha-vazio span {
+  color: var(--laranja);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+/* -------------------------------------------------------------------- card */
+
+.pedido-cozinha {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.pedido-cozinha.atrasado {
+  border-color: var(--laranja);
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.16), 0 14px 34px rgba(0, 0, 0, 0.3);
+  animation: alerta-cozinha 1.6s ease-in-out infinite;
+}
+
+@keyframes alerta-cozinha {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 107, 0, 0), 0 14px 34px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(255, 107, 0, 0.24), 0 14px 34px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.pedido-cozinha__topo {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: clamp(13px, 2vw, 17px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.cozinha-mesa {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 74px;
+  height: 74px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  background: var(--laranja);
+  color: var(--branco);
+  line-height: 1;
+}
+
+.cozinha-mesa span {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.cozinha-mesa strong {
+  margin-top: 4px;
+  font-size: 2.1rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.pedido-cozinha__ident {
+  flex: 1;
+  min-width: 0;
+}
+
+.pedido-cozinha__ident strong {
+  display: block;
+  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  font-weight: 850;
+}
+
+.pedido-cozinha__ident span {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.74rem;
+}
+
+.pedido-cozinha__ident b {
+  color: var(--branco);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.pedido-cozinha__estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.estado-cozinha {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  color: var(--branco);
+  font-size: 0.66rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.estado-cozinha--recebido {
+  border-color: var(--branco);
+}
+
+.estado-cozinha--em-preparo {
+  border-color: var(--laranja);
+  background: var(--laranja);
+}
+
+.cozinha-selo-atraso {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--laranja);
+  color: var(--branco);
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: pulso-numero 1.4s ease-in-out infinite;
+}
+
+.pedido-cozinha__itens {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: clamp(13px, 2vw, 18px);
+  list-style: none;
+}
+
+.pedido-cozinha__itens li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: clamp(0.98rem, 1.8vw, 1.15rem);
+  line-height: 1.35;
+}
+
+.pedido-cozinha__itens .item-qtd {
+  min-width: 36px;
+  color: var(--laranja);
+  font-size: 1.1em;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.pedido-cozinha__itens .item-nome {
+  flex: 1;
+  font-weight: 650;
+}
+
+.pedido-cozinha__itens .item-obs {
+  display: block;
+  margin-top: 3px;
+  color: var(--laranja);
+  font-size: 0.8em;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.pedido-cozinha__obs {
+  margin: 0 clamp(13px, 2vw, 18px) clamp(13px, 2vw, 18px);
+  padding: 10px 12px;
+  border-left: 4px solid var(--laranja);
+  border-radius: 6px;
+  background: rgba(255, 107, 0, 0.14);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.88rem;
+}
+
+.pedido-cozinha__rodape {
+  margin-top: auto;
+  padding: clamp(13px, 2vw, 18px);
+  border-top: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.pedido-cozinha__tempos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.76rem;
+}
+
+.pedido-cozinha__tempos strong {
+  color: var(--branco);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pedido-cozinha__tempos .em-atraso {
+  color: var(--laranja);
+  font-weight: 850;
+}
+
+.pedido-cozinha__acoes {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-cozinha {
+  flex: 1;
+  min-height: 62px;
+  padding: 13px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--branco);
+  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  transition: background var(--transicao), border-color var(--transicao), color var(--transicao),
+    transform var(--transicao);
+}
+
+.btn-cozinha:hover {
+  border-color: var(--branco);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.btn-cozinha:active {
+  transform: scale(0.985);
+}
+
+.btn-cozinha:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.btn-cozinha--principal {
+  border-color: var(--laranja);
+  background: var(--laranja);
+  color: var(--branco);
+}
+
+.btn-cozinha--principal:hover {
+  border-color: var(--branco);
+  background: var(--branco);
+  color: var(--preto);
+}
+
+.btn-cozinha--secundario {
+  flex: 0 0 auto;
+  min-width: 124px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------- responsivo */
+
+@media (min-width: 560px) {
+  .cozinha-resumo {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 820px) {
+  .lista-cozinha {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1320px) {
+  .lista-cozinha {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .cozinha-utilizador > span {
+    display: none;
+  }
+
+  .cozinha-utilizador {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .cozinha-marca__texto span {
+    letter-spacing: 0.07em;
+  }
+
+  .pedido-cozinha__acoes {
+    flex-wrap: wrap;
+  }
+
+  .btn-cozinha--secundario {
+    flex: 1 1 100%;
+    min-height: 48px;
+  }
+}
+
+@media print {
+  .cozinha-topo__acoes,
+  .cozinha-cabecalho__nota {
+    display: none;
+  }
+
+  .pagina-cozinha {
+    background: var(--branco);
+    color: var(--preto);
+  }
+}

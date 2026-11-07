@@ -1,0 +1,462 @@
+<%- include('../partials/head', { cssExtra: '/css/admin.css' }) %>
+<body class="pagina-admin" data-restaurante="<%= restaurante %>" data-upload-max="<%= uploadMaxMb %>" data-video-max="<%= videoMaxMb %>" data-video-segundos="<%= videoMaxSegundos %>" data-utilizador-atual="<%= utilizador.id %>">
+
+<header class="admin-topo">
+  <div class="admin-topo__marca">
+    <span class="marca-logo" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="28" height="28">
+        <path d="M21 14v15a5 5 0 0 0 10 0V14" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M26 14v36" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+        <path d="M43 50V14c6 2 8 8 8 14s-3 9-8 9" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div class="admin-topo__titulo">
+      <strong data-nome-restaurante><%= restaurante %></strong>
+      <span>Painel da gerência</span>
+    </div>
+  </div>
+
+  <div class="admin-topo__acoes">
+    <span class="live-pill" id="estado-ligacao"><span class="ponto-vivo"></span> Em tempo real</span>
+    <button id="btn-som" class="btn-topo" type="button" aria-pressed="false" title="Ativar alertas sonoros">Ativar som</button>
+    <a class="btn-topo" href="/cozinha" target="_blank" rel="noopener">Cozinha</a>
+    <a class="btn-topo" href="/admin/relatorios">Relatórios</a>
+    <a class="btn-topo" href="/admin/qrcodes">QR codes</a>
+    <div class="admin-utilizador">
+      <span><%= utilizador.papel === 'admin' ? 'Administrador' : 'Cozinha' %></span>
+      <strong><%= utilizador.nome %></strong>
+    </div>
+    <form action="/admin/logout" method="post">
+      <button type="submit" class="btn-topo btn-topo--sair">Sair</button>
+    </form>
+  </div>
+</header>
+
+<nav class="admin-abas" role="tablist" aria-label="Secções do painel">
+  <button class="aba-botao is-ativa" type="button" role="tab" id="btn-aba-pedidos" aria-controls="aba-pedidos" aria-selected="true" data-aba="pedidos">
+    Pedidos <span class="aba-badge" id="aba-badge-pedidos">0</span>
+  </button>
+  <button class="aba-botao" type="button" role="tab" id="btn-aba-menu" aria-controls="aba-menu" aria-selected="false" data-aba="menu">Menu</button>
+  <button class="aba-botao" type="button" role="tab" id="btn-aba-mesas" aria-controls="aba-mesas" aria-selected="false" data-aba="mesas">Mesas</button>
+  <button class="aba-botao" type="button" role="tab" id="btn-aba-definicoes" aria-controls="aba-definicoes" aria-selected="false" data-aba="definicoes">Definições</button>
+</nav>
+
+<main class="admin-conteudo">
+  <% if (flash) { %>
+    <div class="alerta alerta--<%= flash.tipo === 'sucesso' ? 'ok' : 'erro' %> alerta--pagina" role="status"><%= flash.mensagem %></div>
+  <% } %>
+
+  <!-- ================================================================ PEDIDOS -->
+  <section id="aba-pedidos" class="admin-secao" role="tabpanel" aria-labelledby="btn-aba-pedidos" data-secao="pedidos">
+    <div class="secao-cabecalho">
+      <div>
+        <p class="eyebrow">Operação</p>
+        <h1>Pedidos</h1>
+        <p>Acompanhe e atualize o estado dos pedidos das mesas.</p>
+      </div>
+      <span class="atualizacao"><span class="ponto-vivo" aria-hidden="true"></span> Atualiza automaticamente</span>
+    </div>
+
+    <div class="resumo-cartoes">
+      <article class="resumo-card">
+        <span>Recebidos</span>
+        <strong id="resumo-recebido">0</strong>
+      </article>
+      <article class="resumo-card">
+        <span>Em preparo</span>
+        <strong id="resumo-preparo">0</strong>
+      </article>
+      <article class="resumo-card">
+        <span>Prontos</span>
+        <strong id="resumo-pronto">0</strong>
+      </article>
+      <article class="resumo-card resumo-card--alerta" id="cartao-atrasados">
+        <span>Atrasados</span>
+        <strong id="resumo-atrasados">0</strong>
+      </article>
+      <article class="resumo-card resumo-card--alerta" id="cartao-chamadas">
+        <span>Chamadas</span>
+        <strong id="resumo-chamadas">0</strong>
+      </article>
+    </div>
+
+    <section class="bloco chamadas-bloco" id="bloco-chamadas">
+      <header class="bloco__topo">
+        <div class="bloco__titulo">
+          <h2>Chamadas de mesa</h2>
+          <span class="pill pill--laranja" id="chamadas-contagem">0</span>
+        </div>
+        <p class="bloco__subtitulo">Empregado ou conta pedidos pelo cliente.</p>
+      </header>
+      <div id="lista-chamadas" class="lista-chamadas">
+        <p class="estado-vazio estado-vazio--compacto">Sem chamadas pendentes.</p>
+      </div>
+    </section>
+
+    <section class="bloco">
+      <header class="bloco__topo bloco__topo--filtros">
+        <h2>Lista de pedidos</h2>
+        <div class="filtros" id="filtros-pedidos" role="group" aria-label="Filtrar pedidos por estado">
+          <button class="filtro is-ativo" type="button" data-filtro="ativos">Ativos</button>
+          <button class="filtro" type="button" data-filtro="Recebido">Recebido</button>
+          <button class="filtro" type="button" data-filtro="Em preparo">Em preparo</button>
+          <button class="filtro" type="button" data-filtro="Pronto">Pronto</button>
+          <button class="filtro" type="button" data-filtro="Entregue">Entregue</button>
+          <button class="filtro" type="button" data-filtro="Cancelado">Cancelado</button>
+          <button class="filtro" type="button" data-filtro="todos">Todos</button>
+        </div>
+      </header>
+      <div id="lista-pedidos-admin" class="lista-pedidos-admin" aria-live="polite">
+        <div class="estado-carregando"><span class="spinner"></span> A carregar pedidos…</div>
+      </div>
+    </section>
+  </section>
+
+  <!-- =================================================================== MENU -->
+  <section id="aba-menu" class="admin-secao" role="tabpanel" aria-labelledby="btn-aba-menu" data-secao="menu" hidden>
+    <div class="secao-cabecalho">
+      <div>
+        <p class="eyebrow">Menu digital</p>
+        <h1>Menu</h1>
+        <p>Organize categorias, pratos, preços, etiquetas e disponibilidade.</p>
+      </div>
+    </div>
+
+    <div class="layout-menu-admin">
+      <section class="bloco bloco--categorias">
+        <header class="bloco__topo">
+          <h2>Categorias</h2>
+          <button id="btn-nova-categoria" type="button" class="btn btn-preto btn-pequeno">+ Categoria</button>
+        </header>
+        <div id="lista-categorias" class="lista-categorias-admin">
+          <div class="estado-carregando"><span class="spinner"></span> A carregar…</div>
+        </div>
+      </section>
+
+      <section class="bloco bloco--pratos">
+        <header class="bloco__topo bloco__topo--filtros">
+          <h2>Pratos</h2>
+          <div class="acoes-filtro">
+            <label class="sr-only" for="filtro-categoria-pratos">Filtrar por categoria</label>
+            <select id="filtro-categoria-pratos" class="select select--compacto">
+              <option value="">Todas as categorias</option>
+            </select>
+            <button id="btn-novo-prato" type="button" class="btn btn-laranja btn-pequeno">+ Prato</button>
+          </div>
+        </header>
+        <div id="lista-pratos" class="lista-pratos-admin">
+          <div class="estado-carregando"><span class="spinner"></span> A carregar pratos…</div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ================================================================== MESAS -->
+  <section id="aba-mesas" class="admin-secao" role="tabpanel" aria-labelledby="btn-aba-mesas" data-secao="mesas" hidden>
+    <div class="secao-cabecalho">
+      <div>
+        <p class="eyebrow">Sala</p>
+        <h1>Mesas</h1>
+        <p>Ative mesas, comunique o código ao cliente e feche contas.</p>
+      </div>
+      <a href="/admin/qrcodes" class="btn btn-contorno">Imprimir todos os QR codes</a>
+    </div>
+
+    <div class="dica">
+      <strong>Código de 4 dígitos:</strong> ao ativar uma mesa é gerado um código único. O cliente introduz esse código ao abrir o menu para evitar pedidos falsos.
+    </div>
+
+    <div id="lista-mesas" class="grelha-mesas">
+      <div class="estado-carregando"><span class="spinner"></span> A carregar mesas…</div>
+    </div>
+  </section>
+
+  <!-- ============================================================= DEFINIÇÕES -->
+  <section id="aba-definicoes" class="admin-secao" role="tabpanel" aria-labelledby="btn-aba-definicoes" data-secao="definicoes" hidden>
+    <div class="secao-cabecalho">
+      <div>
+        <p class="eyebrow">Configuração</p>
+        <h1>Definições</h1>
+        <p>Personalize o restaurante, a segurança das mesas e os utilizadores.</p>
+      </div>
+    </div>
+
+    <div class="grelha-definicoes">
+      <section class="bloco">
+        <header class="bloco__topo">
+          <h2>Definições gerais</h2>
+        </header>
+        <form id="form-definicoes" class="form-stack" novalidate>
+          <div>
+            <label class="campo" for="config-nome">Nome do restaurante</label>
+            <input class="input" id="config-nome" name="nome_restaurante" type="text" maxlength="60" required>
+          </div>
+          <label class="switch-linha">
+            <span>
+              <strong>Código de 4 dígitos da mesa</strong>
+              <small>Exigir o código ao cliente antes de permitir pedidos. Recomendado.</small>
+            </span>
+            <span class="switch">
+              <input id="config-codigo" type="checkbox">
+              <span class="switch__pista" aria-hidden="true"></span>
+            </span>
+          </label>
+          <div>
+            <label class="campo" for="config-base">Endereço público (QR codes)</label>
+            <input class="input input--leitura" id="config-base" type="text" value="<%= baseUrl %>" readonly>
+            <p class="ajuda">Definido no ficheiro <code>.env</code> através de <code>BASE_URL</code>. É este endereço que os QR codes abrem.</p>
+          </div>
+          <button type="submit" id="btn-guardar-definicoes" class="btn btn-laranja">Guardar definições</button>
+        </form>
+      </section>
+
+      <section class="bloco">
+        <header class="bloco__topo">
+          <h2>Utilizadores</h2>
+        </header>
+        <div id="lista-utilizadores" class="lista-utilizadores">
+          <div class="estado-carregando"><span class="spinner"></span> A carregar…</div>
+        </div>
+
+        <form id="form-utilizador" class="form-utilizador" novalidate>
+          <h3>Adicionar utilizador</h3>
+          <div class="grelha-form grelha-form--utilizador">
+            <div>
+              <label class="campo" for="novo-user-nome">Nome</label>
+              <input class="input" id="novo-user-nome" name="nome" type="text" maxlength="60" required>
+            </div>
+            <div>
+              <label class="campo" for="novo-user-username">Utilizador</label>
+              <input class="input" id="novo-user-username" name="username" type="text" maxlength="30" required autocomplete="off">
+            </div>
+            <div>
+              <label class="campo" for="novo-user-password">Password inicial</label>
+              <input class="input" id="novo-user-password" name="password" type="password" minlength="8" maxlength="72" required autocomplete="new-password">
+            </div>
+            <div>
+              <label class="campo" for="novo-user-papel">Papel</label>
+              <select class="select" id="novo-user-papel" name="papel">
+                <option value="cozinha">Cozinha</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" id="btn-criar-utilizador" class="btn btn-preto">Criar utilizador</button>
+        </form>
+      </section>
+    </div>
+  </section>
+</main>
+
+<!-- ============================================================ MODAL: PRATO -->
+<dialog id="modal-prato" class="modal">
+  <form id="form-prato" class="modal__form" novalidate>
+    <header class="modal__topo">
+      <div>
+        <p class="eyebrow" id="modal-prato-eyebrow">Novo prato</p>
+        <h2 id="modal-prato-titulo">Adicionar prato</h2>
+      </div>
+      <button type="button" class="btn-icone" data-fechar-modal aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+
+    <div class="modal__corpo">
+      <div class="grelha-form">
+        <div class="campo-largo">
+          <label class="campo" for="prato-nome">Nome do prato</label>
+          <input class="input" id="prato-nome" name="nome" type="text" maxlength="80" required>
+        </div>
+        <div>
+          <label class="campo" for="prato-categoria">Categoria</label>
+          <select class="select" id="prato-categoria" name="categoria_id" required></select>
+        </div>
+        <div>
+          <label class="campo" for="prato-preco">Preço (MZN)</label>
+          <input class="input" id="prato-preco" name="preco" type="number" min="0" step="0.01" inputmode="decimal" required>
+        </div>
+        <div>
+          <label class="campo" for="prato-tempo">Tempo de preparo (min)</label>
+          <input class="input" id="prato-tempo" name="tempo_preparo" type="number" min="1" max="180" required>
+        </div>
+        <div class="campo-largo">
+          <label class="campo" for="prato-descricao">Descrição</label>
+          <textarea class="textarea" id="prato-descricao" name="descricao" maxlength="300" rows="3"></textarea>
+        </div>
+        <div class="campo-largo media-campo">
+          <label class="campo" for="prato-foto">Foto do prato <span>(opcional)</span></label>
+          <input class="input input--ficheiro" id="prato-foto" name="foto" type="file" accept="image/*">
+          <p class="ajuda">JPG, PNG, WEBP ou GIF até <%= uploadMaxMb %> MB. A imagem é redimensionada para 800px de largura e comprimida em JPEG com qualidade 0,8. Pode tirar uma fotografia na hora ou escolher da galeria.</p>
+        </div>
+        <div class="campo-largo media-campo">
+          <label class="campo" for="prato-video">Vídeo do prato <span>(opcional)</span></label>
+          <input class="input input--ficheiro" id="prato-video" name="video" type="file" accept="video/mp4,video/*">
+          <p class="ajuda">MP4, WEBM ou MOV até <%= videoMaxMb %> MB e <%= videoMaxSegundos %> segundos. No telemóvel pode gravar na hora ou escolher da galeria.</p>
+        </div>
+      </div>
+
+      <div class="prato-preview">
+        <img id="prato-foto-preview" src="/img/prato-placeholder.svg" alt="Pré-visualização da fotografia" loading="lazy">
+        <div class="prato-preview__info">
+          <span id="prato-foto-nota">Sem fotografia</span>
+          <button id="btn-remover-foto" class="btn-mini btn-mini--perigo" type="button" hidden>Remover fotografia</button>
+        </div>
+      </div>
+
+      <div class="prato-preview prato-preview--video" id="prato-video-caixa" hidden>
+        <video id="prato-video-preview" playsinline controls preload="metadata"></video>
+        <div class="prato-preview__info">
+          <span id="prato-video-nota">Sem vídeo</span>
+          <button id="btn-remover-video" class="btn-mini btn-mini--perigo" type="button" hidden>Remover vídeo</button>
+        </div>
+      </div>
+
+      <div id="prato-progresso" class="upload-progresso" hidden>
+        <div class="upload-progresso__pista" aria-hidden="true">
+          <span id="prato-progresso-barra"></span>
+        </div>
+        <span id="prato-progresso-texto">A enviar…</span>
+      </div>
+      <p id="prato-media-estado" class="upload-estado" role="status" hidden></p>
+      <p class="ajuda ajuda--armazenamento">
+        <% if (supabaseAtivo) { %>
+          Os ficheiros são guardados no Supabase Storage (buckets <strong>pratos</strong> e <strong>videos-pratos</strong>).
+        <% } else { %>
+          Modo local: configure <strong>SUPABASE_URL</strong> e <strong>SUPABASE_SERVICE_ROLE_KEY</strong> no .env para guardar no Supabase Storage.
+        <% } %>
+      </p>
+
+      <fieldset class="etiquetas-opcoes">
+        <legend>Etiquetas</legend>
+        <label><input type="checkbox" class="etiqueta-check" value="vegetariano"> Vegetariano</label>
+        <label><input type="checkbox" class="etiqueta-check" value="picante"> Picante</label>
+        <label><input type="checkbox" class="etiqueta-check" value="novo"> Novo</label>
+        <label><input type="checkbox" class="etiqueta-check" value="mais pedido"> Mais pedido</label>
+      </fieldset>
+
+      <label class="switch-linha">
+        <span>
+          <strong>Disponível para pedidos</strong>
+          <small>Se desligar, o prato aparece esgotado no menu do cliente.</small>
+        </span>
+        <span class="switch">
+          <input id="prato-disponivel" type="checkbox" checked>
+          <span class="switch__pista" aria-hidden="true"></span>
+        </span>
+      </label>
+    </div>
+
+    <footer class="modal__rodape">
+      <button type="button" class="btn btn-contorno" data-fechar-modal>Cancelar</button>
+      <button type="submit" id="btn-guardar-prato" class="btn btn-laranja">Guardar prato</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ========================================================= MODAL: CATEGORIA -->
+<dialog id="modal-categoria" class="modal modal--pequeno">
+  <form id="form-categoria" class="modal__form" novalidate>
+    <header class="modal__topo">
+      <div>
+        <p class="eyebrow" id="modal-categoria-eyebrow">Nova categoria</p>
+        <h2 id="modal-categoria-titulo">Adicionar categoria</h2>
+      </div>
+      <button type="button" class="btn-icone" data-fechar-modal aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="modal__corpo form-stack">
+      <div>
+        <label class="campo" for="categoria-nome">Nome</label>
+        <input class="input" id="categoria-nome" name="nome" type="text" maxlength="40" required>
+      </div>
+      <div>
+        <label class="campo" for="categoria-ordem">Ordem de apresentação</label>
+        <input class="input" id="categoria-ordem" name="ordem" type="number" min="0" max="999" value="0">
+      </div>
+    </div>
+    <footer class="modal__rodape">
+      <button type="button" class="btn btn-contorno" data-fechar-modal>Cancelar</button>
+      <button type="submit" class="btn btn-laranja">Guardar categoria</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ============================================================ MODAL: CONTA -->
+<dialog id="modal-conta" class="modal modal--conta">
+  <header class="modal__topo">
+    <div>
+      <p class="eyebrow">Conta da sessão</p>
+      <h2 id="conta-titulo">Mesa</h2>
+    </div>
+    <button type="button" class="btn-icone" data-fechar-modal aria-label="Fechar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="modal__corpo" id="conta-conteudo">
+    <div class="estado-carregando"><span class="spinner"></span> A carregar conta…</div>
+  </div>
+  <footer class="modal__rodape">
+    <button type="button" class="btn btn-contorno" data-fechar-modal>Voltar</button>
+    <button type="button" id="btn-fechar-conta" class="btn btn-preto">Fechar conta</button>
+  </footer>
+</dialog>
+
+<!-- =================================================== MODAL: MESA ATIVADA -->
+<dialog id="modal-mesa-ativada" class="modal modal--pequeno modal--codigo">
+  <div class="modal__form">
+    <header class="modal__topo">
+      <div>
+        <p class="eyebrow">Mesa ativada</p>
+        <h2>Mesa <span id="codigo-mesa-numero">—</span></h2>
+      </div>
+      <button type="button" class="btn-icone" data-fechar-modal aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="modal__corpo">
+      <p class="texto-suave">Comunique este código ao cliente. Ele deve introduzi-lo ao abrir o menu.</p>
+      <div class="codigo-grande" id="codigo-mesa-valor">0000</div>
+      <p class="aviso-codigo-desligado oculto" id="aviso-codigo-desligado">A verificação de código está desligada nas definições; o cliente entra sem código.</p>
+      <div class="acoes-modal-codigo">
+        <a id="link-qr-mesa" href="#" class="btn btn-contorno">Descarregar QR code</a>
+        <button type="button" class="btn btn-laranja" data-fechar-modal>Concluir</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<!-- ========================================================= MODAL: PASSWORD -->
+<dialog id="modal-password" class="modal modal--pequeno">
+  <form id="form-password" class="modal__form" novalidate>
+    <header class="modal__topo">
+      <div>
+        <p class="eyebrow">Segurança</p>
+        <h2 id="modal-password-titulo">Repor password</h2>
+      </div>
+      <button type="button" class="btn-icone" data-fechar-modal aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="modal__corpo form-stack">
+      <p class="texto-suave">Defina uma password temporária. O utilizador terá de a alterar no próximo início de sessão.</p>
+      <div>
+        <label class="campo" for="password-nova">Nova password</label>
+        <input class="input" id="password-nova" name="password" type="password" minlength="8" maxlength="72" required autocomplete="new-password">
+        <p class="ajuda">Mínimo de 8 caracteres.</p>
+      </div>
+    </div>
+    <footer class="modal__rodape">
+      <button type="button" class="btn btn-contorno" data-fechar-modal>Cancelar</button>
+      <button type="submit" id="btn-guardar-password" class="btn btn-laranja">Repor password</button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/js/comum.js" defer></script>
+<script src="/js/admin.js" defer></script>
+</body>
+</html>
