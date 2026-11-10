@@ -3,12 +3,15 @@ function cabecalhosSeguranca(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // A câmara/microfone são usados apenas pelo seletor nativo de ficheiros
+  // (input capture) no painel; não há getUserMedia na aplicação.
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob: https:",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "connect-src 'self' ws: wss:",

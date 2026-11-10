@@ -259,6 +259,25 @@
     });
   }
 
+  function tocarCartoesVisiveis() {
+    if (!reproduzirAutomaticamente) return;
+    videosCards.forEach((video) => {
+      const card = video.closest('.menu-card');
+      if (!card || card.hidden) {
+        pausarVideo(video);
+        return;
+      }
+      const rect = video.getBoundingClientRect();
+      const visivel =
+        rect.bottom > 0 &&
+        rect.top < window.innerHeight &&
+        rect.right > 0 &&
+        rect.left < window.innerWidth;
+      if (visivel) tocarVideo(video);
+      else pausarVideo(video);
+    });
+  }
+
   function mostrarVista(nome) {
     vistas.forEach((vista) => {
       vista.classList.toggle('is-ativa', vista.id === `vista-${nome}`);
@@ -277,12 +296,7 @@
       const visivel = slides.find((slide) => slide.classList.contains('is-visivel')) || slides[0];
       if (visivel) tocarVideo(visivel.querySelector('[data-video-feed]'));
     }
-    if (nome === 'menu' && reproduzirAutomaticamente) {
-      videosCards.forEach((video) => {
-        const card = video.closest('.menu-card');
-        if (card && !card.hidden) tocarVideo(video);
-      });
-    }
+    if (nome === 'menu') tocarCartoesVisiveis();
     if (nome === 'mesa') renderizarCarrinho();
   }
 
@@ -651,8 +665,8 @@
       videosCards.forEach((video) => {
         const card = video.closest('.menu-card');
         if (!card || card.hidden) pausarVideo(video);
-        else if (reproduzirAutomaticamente) tocarVideo(video);
       });
+      tocarCartoesVisiveis();
       if (menuGrelha) menuGrelha.scrollTop = 0;
     });
   });

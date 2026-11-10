@@ -1687,10 +1687,26 @@
 
   modalPrato.addEventListener('close', () => {
     pratoEditandoId = null;
-    if (urlPreviewFoto) {
-      URL.revokeObjectURL(urlPreviewFoto);
-      urlPreviewFoto = null;
+    revogarUrl(urlPreviewFoto);
+    revogarUrl(urlPreviewVideo);
+    urlPreviewFoto = null;
+    urlPreviewVideo = null;
+    ficheiroFoto = null;
+    ficheiroVideo = null;
+    promessaFoto = null;
+    removerFoto = false;
+    removerVideo = false;
+    campoPratoFoto.value = '';
+    campoPratoVideo.value = '';
+    try {
+      previewVideo.pause();
+    } catch {
+      /* ignora */
     }
+    previewVideo.removeAttribute('src');
+    previewVideo.load();
+    mostrarEstadoMedia('');
+    mostrarProgresso(false);
   });
 
   modalCategoria.addEventListener('close', () => {

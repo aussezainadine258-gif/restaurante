@@ -42,7 +42,12 @@ async function pedir(caminho, opcoes = {}) {
   ]) {
     if (!menu.dados.includes(texto)) falhar(`menu não contém "${texto}"`);
   }
-  if (/<video/i.test(menu.dados)) falhar('o feed sem vídeos não deve renderizar <video>');
+  const videosFeed = menu.dados.match(/<video[^>]*class="feed-slide__video"[^>]*>/gi) || [];
+  for (const tag of videosFeed) {
+    if (!/src="[^"]+"/.test(tag) || !/poster="[^"]+"/.test(tag)) {
+      falhar('cada vídeo do feed deve ter src e poster');
+    }
+  }
 
   console.log('2. Mesa inativa bloqueia o menu...');
   const inativa = await pedir('/menu?mesa=6');
