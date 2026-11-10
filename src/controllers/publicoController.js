@@ -1,5 +1,5 @@
 // Controllers do lado do cliente: menu, carrinho/pedidos e acompanhamento.
-const db = require('../db');
+const { query } = require('../db');
 const configuracoes = require('../services/configuracoes');
 const mesas = require('../services/mesas');
 const pedidos = require('../services/pedidos');
@@ -20,19 +20,20 @@ const ROTULOS_ETIQUETA = {
   'mais pedido': 'Mais pedido'
 };
 
-function carregarMenu() {
-  const categorias = db
-    .prepare('SELECT id, nome FROM categorias WHERE ativo = 1 ORDER BY ordem ASC, nome ASC')
-    .all();
-  const pratos = db
-    .prepare(`
+async function carregarMenu() {
+  const [categoriasRes, pratosRes] = await Promise.all([
+    query('SELECT id, nome FROM categorias WHERE ativo = TRUE ORDER BY ordem ASC, nome ASC'),
+    query(`
       SELECT p.*, c.nome AS categoria_nome
       FROM pratos p
       JOIN categorias c ON c.id = p.categoria_id
-      WHERE c.ativo = 1
+      WHERE c.ativo = TRUE
       ORDER BY p.nome ASC
     `)
-    .all();
+  ]);
+
+  const categorias = categoriasRes.rows;
+  const pratos = pratosRes.rows;
 
   const porCategoria = new Map(categorias.map((c) => [c.id, { ...c, pratos: [] }]));
   for (const prato of pratos) {
@@ -79,14 +80,14 @@ function paginaInicial(req, res) {
   return res.redirect('/menu');
 }
 
-function paginaMenu(req, res, next) {
+async function paginaMenu(req, res, next) {
   try {
     const bruto = req.query.mesa;
     if (bruto === undefined || bruto === '') {
       return res.render('sem-mesa', { titulo: 'Escolha a sua mesa' });
     }
     const numero = validacao.inteiro(bruto, { min: 1, max: 999, campo: 'mesa' });
-    const mesa = mesas.obterMesaPorNumero(numero);
+    const mesa = await mesas.obterMesaPorNumero(numero);
     if (!mesa) {
       return res.status(404).render('erro', {
         titulo: 'Mesa não encontrada',
@@ -102,8 +103,11 @@ function paginaMenu(req, res, next) {
       });
     }
 
-    const exigeCodigo = configuracoes.codigoMesaAtivo();
-    const categorias = carregarMenu();
+    const [exigeCodigo, categorias, nomeRestaurante] = await Promise.all([
+      configuracoes.codigoMesaAtivo(),
+      carregarMenu(),
+      configuracoes.nomeRestaurante()
+    ]);
     const feed = ordenarFeed(categorias.flatMap((categoria) => categoria.pratos));
     return res.render('menu', {
       titulo: `Mesa ${mesa.numero}`,
@@ -111,14 +115,14 @@ function paginaMenu(req, res, next) {
       exigeCodigo,
       categorias,
       feed,
-      nomeRestaurante: configuracoes.nomeRestaurante()
+      nomeRestaurante
     });
   } catch (erro) {
     return next(erro);
   }
 }
 
-function paginaAcompanhar(req, res, next) {
+async function paginaAcompanhar(req, res, next) {
   try {
     const token = String(req.query.token || '');
     if (!token) {
@@ -128,12 +132,15 @@ function paginaAcompanhar(req, res, next) {
         status: 400
       });
     }
-    const resumo = mesas.resumoPorToken(token);
+    const [resumo, nomeRestaurante] = await Promise.all([
+      mesas.resumoPorToken(token),
+      configuracoes.nomeRestaurante()
+    ]);
     return res.render('acompanhar', {
       titulo: `Mesa ${resumo.mesa.numero} · Acompanhar`,
       token,
       resumo,
-      nomeRestaurante: configuracoes.nomeRestaurante()
+      nomeRestaurante
     });
   } catch (erro) {
     return next(erro);
@@ -141,11 +148,11 @@ function paginaAcompanhar(req, res, next) {
 }
 
 // Confirma o código de 4 dígitos e devolve o token da sessão da mesa.
-function apiVerificarMesa(req, res, next) {
+async function apiVerificarMesa(req, res, next) {
   try {
     const numero = validacao.inteiro(req.body.mesa, { min: 1, max: 999, campo: 'mesa' });
     const codigo = String(req.body.codigo || '').trim();
-    const exigeCodigo = configuracoes.codigoMesaAtivo();
+    const exigeCodigo = await configuracoes.codigoMesaAtivo();
     const chave = `${req.ip}:${numero}`;
 
     if (exigeCodigo) {
@@ -159,7 +166,7 @@ function apiVerificarMesa(req, res, next) {
     }
 
     try {
-      const acesso = mesas.verificarAcessoMesa(numero, codigo);
+      const acesso = await mesas.verificarAcessoMesa(numero, codigo);
       if (exigeCodigo) tentativasCodigo.sucesso(chave);
       return res.json({
         ok: true,
@@ -194,33 +201,36 @@ function apiVerificarMesa(req, res, next) {
 }
 
 // Estado público mínimo da mesa, usado pela página de espera.
-function apiEstadoMesa(req, res, next) {
+async function apiEstadoMesa(req, res, next) {
   try {
     const numero = validacao.inteiro(req.params.numero, { min: 1, max: 999, campo: 'mesa' });
-    const mesa = mesas.obterMesaPorNumero(numero);
+    const [mesa, exigeCodigo] = await Promise.all([
+      mesas.obterMesaPorNumero(numero),
+      configuracoes.codigoMesaAtivo()
+    ]);
     if (!mesa) throw new ErroAplicacao('Mesa não encontrada.', 404);
     return res.json({
       numero: mesa.numero,
       ativa: Boolean(mesa.ativa),
-      exigeCodigo: configuracoes.codigoMesaAtivo()
+      exigeCodigo
     });
   } catch (erro) {
     return next(erro);
   }
 }
 
-function apiResumoSessao(req, res, next) {
+async function apiResumoSessao(req, res, next) {
   try {
-    const resumo = mesas.resumoPorToken(req.params.token);
+    const resumo = await mesas.resumoPorToken(req.params.token);
     return res.json(resumo);
   } catch (erro) {
     return next(erro);
   }
 }
 
-function apiCriarPedido(req, res, next) {
+async function apiCriarPedido(req, res, next) {
   try {
-    const pedido = pedidos.criarPedido({
+    const pedido = await pedidos.criarPedido({
       token: req.body.token,
       itens: req.body.itens,
       observacoes: req.body.observacoes
@@ -232,9 +242,9 @@ function apiCriarPedido(req, res, next) {
   }
 }
 
-function apiCriarChamada(req, res, next) {
+async function apiCriarChamada(req, res, next) {
   try {
-    const chamada = chamadas.criarChamada(req.body.token, req.body.tipo);
+    const chamada = await chamadas.criarChamada(req.body.token, req.body.tipo);
     realtime.novaChamada(chamada);
     return res.status(201).json({
       ok: true,
@@ -250,10 +260,10 @@ function apiCriarChamada(req, res, next) {
 }
 
 // Gosto/desgosto de um prato pela sessão da mesa (um por sessão).
-function apiAlternarGosto(req, res, next) {
+async function apiAlternarGosto(req, res, next) {
   try {
     const pratoId = validacao.inteiro(req.params.id, { min: 1, campo: 'prato' });
-    const resultado = gostos.alternarGosto(req.body.token, pratoId);
+    const resultado = await gostos.alternarGosto(req.body.token, pratoId);
     return res.json({ ok: true, ...resultado });
   } catch (erro) {
     return next(erro);
@@ -261,9 +271,9 @@ function apiAlternarGosto(req, res, next) {
 }
 
 // Pequena página de diagnóstico (não expõe dados sensíveis).
-function saude(req, res) {
+async function saude(req, res) {
   try {
-    db.prepare('SELECT 1').get();
+    await query('SELECT 1');
     return res.json({ ok: true, hora: dataHoraLocal(new Date().toISOString()) });
   } catch {
     return res.status(500).json({ ok: false });

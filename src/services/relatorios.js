@@ -1,10 +1,11 @@
 // Agregações dos relatórios. As datas e horas são calculadas no fuso de
 // Africa/Maputo para que a faturação do dia corresponda ao horário local.
-const db = require('../db');
-const { diaLocal, horaLocalNumero, formatarMZN } = require('../lib/utils');
+const { query } = require('../db');
+const { diaLocal, formatarMZN } = require('../lib/utils');
 
 const HORAS = Array.from({ length: 24 }, (_, indice) => indice);
 const MAX_PRATOS = 8;
+const FUSO = 'Africa/Maputo';
 
 function hojeLocal() {
   return diaLocal(new Date().toISOString());
@@ -30,7 +31,7 @@ function rotuloCurto(data) {
 function rotuloLongo(data) {
   const [ano, mes, dia] = data.split('-').map(Number);
   return new Intl.DateTimeFormat('pt-MZ', {
-    timeZone: 'Africa/Maputo',
+    timeZone: FUSO,
     day: '2-digit',
     month: 'long',
     year: 'numeric'
@@ -52,61 +53,100 @@ function inicioDaJanela(primeiroDia) {
   return new Date(`${primeiroDia}T00:00:00+02:00`).toISOString();
 }
 
-function gerarRelatorio(valorData) {
+function inicioDoDia(data) {
+  return new Date(`${data}T00:00:00+02:00`).toISOString();
+}
+
+function fimDoDia(data) {
+  return new Date(new Date(`${data}T00:00:00+02:00`).getTime() + 24 * 60 * 60 * 1000).toISOString();
+}
+
+// Totais por dia da janela de sete dias (agregação feita no Postgres).
+const SQL_POR_DIA = `
+  SELECT
+    to_char(criado_em AT TIME ZONE '${FUSO}', 'YYYY-MM-DD') AS dia,
+    COUNT(*)::int AS pedidos,
+    COALESCE(SUM(total_centavos), 0)::bigint AS total_centavos
+  FROM pedidos
+  WHERE estado <> 'Cancelado' AND criado_em >= $1
+  GROUP BY 1
+`;
+
+// Resumo do dia selecionado.
+const SQL_RESUMO_DIA = `
+  SELECT
+    COUNT(*)::int AS pedidos,
+    COALESCE(SUM(total_centavos), 0)::bigint AS total_centavos
+  FROM pedidos
+  WHERE estado <> 'Cancelado' AND criado_em >= $1 AND criado_em < $2
+`;
+
+// Artigos vendidos no dia selecionado.
+const SQL_ARTIGOS_DIA = `
+  SELECT COALESCE(SUM(ip.quantidade), 0)::int AS artigos
+  FROM itens_pedido ip
+  JOIN pedidos p ON p.id = ip.pedido_id
+  WHERE p.estado <> 'Cancelado' AND p.criado_em >= $1 AND p.criado_em < $2
+`;
+
+// Vendas por hora no dia selecionado.
+const SQL_POR_HORA = `
+  SELECT
+    EXTRACT(HOUR FROM criado_em AT TIME ZONE '${FUSO}')::int AS hora,
+    COUNT(*)::int AS pedidos,
+    COALESCE(SUM(total_centavos), 0)::bigint AS total_centavos
+  FROM pedidos
+  WHERE estado <> 'Cancelado' AND criado_em >= $1 AND criado_em < $2
+  GROUP BY 1
+`;
+
+// Pratos mais vendidos no dia selecionado.
+const SQL_PRATOS = `
+  SELECT
+    ip.nome_prato AS nome,
+    SUM(ip.quantidade)::int AS quantidade,
+    SUM(ip.quantidade * ip.preco_centavos)::bigint AS total_centavos
+  FROM itens_pedido ip
+  JOIN pedidos p ON p.id = ip.pedido_id
+  WHERE p.estado <> 'Cancelado' AND p.criado_em >= $1 AND p.criado_em < $2
+  GROUP BY ip.nome_prato
+  ORDER BY quantidade DESC, total_centavos DESC
+  LIMIT ${MAX_PRATOS}
+`;
+
+async function gerarRelatorio(valorData) {
   const dataSelecionada = normalizarData(valorData);
   const dias = ultimosDias(dataSelecionada);
   const diasPermitidos = new Set(dias);
   const inicio = inicioDaJanela(dias[0]);
+  const inicioDia = inicioDoDia(dataSelecionada);
+  const fimDia = fimDoDia(dataSelecionada);
 
-  const pedidos = db
-    .prepare(`
-      SELECT id, criado_em, total_centavos
-      FROM pedidos
-      WHERE estado != 'Cancelado' AND criado_em >= ?
-      ORDER BY criado_em ASC
-    `)
-    .all(inicio);
-
-  const itens = db
-    .prepare(`
-      SELECT ip.nome_prato, ip.quantidade, ip.preco_centavos, p.criado_em
-      FROM itens_pedido ip
-      JOIN pedidos p ON p.id = ip.pedido_id
-      WHERE p.estado != 'Cancelado' AND p.criado_em >= ?
-    `)
-    .all(inicio);
+  const [porDiaRes, resumoRes, artigosRes, porHoraRes, pratosRes] = await Promise.all([
+    query(SQL_POR_DIA, [inicio]),
+    query(SQL_RESUMO_DIA, [inicioDia, fimDia]),
+    query(SQL_ARTIGOS_DIA, [inicioDia, fimDia]),
+    query(SQL_POR_HORA, [inicioDia, fimDia]),
+    query(SQL_PRATOS, [inicioDia, fimDia])
+  ]);
 
   const resumoPorDia = new Map(
     dias.map((data) => [data, { data, rotulo: rotuloCurto(data), pedidos: 0, total_centavos: 0 }])
   );
 
-  const pedidosDoDia = [];
-  for (const pedido of pedidos) {
-    const dia = diaLocal(pedido.criado_em);
-    if (!diasPermitidos.has(dia)) continue;
-    const resumo = resumoPorDia.get(dia);
-    resumo.pedidos += 1;
-    resumo.total_centavos += Number(pedido.total_centavos) || 0;
-    if (dia === dataSelecionada) pedidosDoDia.push(pedido);
+  for (const linha of porDiaRes.rows) {
+    if (!diasPermitidos.has(linha.dia)) continue;
+    const resumo = resumoPorDia.get(linha.dia);
+    resumo.pedidos = Number(linha.pedidos) || 0;
+    resumo.total_centavos = Number(linha.total_centavos) || 0;
   }
 
-  const pratosPorNome = new Map();
-  let artigosVendidos = 0;
-  for (const item of itens) {
-    if (diaLocal(item.criado_em) !== dataSelecionada) continue;
-    const quantidade = Number(item.quantidade) || 0;
-    artigosVendidos += quantidade;
-    const chave = item.nome_prato;
-    const atual = pratosPorNome.get(chave) || { nome: chave, quantidade: 0, total_centavos: 0 };
-    atual.quantidade += quantidade;
-    atual.total_centavos += quantidade * (Number(item.preco_centavos) || 0);
-    pratosPorNome.set(chave, atual);
-  }
-
-  const pratos = [...pratosPorNome.values()]
-    .sort((a, b) => b.quantidade - a.quantidade || b.total_centavos - a.total_centavos)
-    .slice(0, MAX_PRATOS)
-    .map((prato) => ({ ...prato, total_formatado: formatarMZN(prato.total_centavos) }));
+  const pratos = pratosRes.rows.map((linha) => ({
+    nome: linha.nome,
+    quantidade: Number(linha.quantidade) || 0,
+    total_centavos: Number(linha.total_centavos) || 0,
+    total_formatado: formatarMZN(linha.total_centavos)
+  }));
 
   const horas = HORAS.map((hora) => ({
     hora,
@@ -115,12 +155,11 @@ function gerarRelatorio(valorData) {
     total_centavos: 0
   }));
 
-  for (const pedido of pedidosDoDia) {
-    const hora = horaLocalNumero(pedido.criado_em);
-    const registo = horas[hora];
+  for (const linha of porHoraRes.rows) {
+    const registo = horas[Number(linha.hora)];
     if (!registo) continue;
-    registo.pedidos += 1;
-    registo.total_centavos += Number(pedido.total_centavos) || 0;
+    registo.pedidos = Number(linha.pedidos) || 0;
+    registo.total_centavos = Number(linha.total_centavos) || 0;
   }
 
   const horaPico = horas.reduce(
@@ -128,8 +167,9 @@ function gerarRelatorio(valorData) {
     { hora: null, rotulo: '—', pedidos: 0, total_centavos: 0 }
   );
 
-  const totalCentavos = pedidosDoDia.reduce((soma, pedido) => soma + (Number(pedido.total_centavos) || 0), 0);
-  const totalPedidos = pedidosDoDia.length;
+  const totalCentavos = Number(resumoRes.rows[0].total_centavos) || 0;
+  const totalPedidos = Number(resumoRes.rows[0].pedidos) || 0;
+  const artigosVendidos = Number(artigosRes.rows[0].artigos) || 0;
   const ticketMedio = totalPedidos ? Math.round(totalCentavos / totalPedidos) : 0;
 
   return {

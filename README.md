@@ -55,7 +55,7 @@ Ecrã dedicado com os pedidos ativos e transições **Recebido → Em preparo �
 
 - **Node.js 18 ou superior** (testado com Node 24)
 - Windows, Linux ou macOS
-- SQLite local para os dados
+- **PostgreSQL** (Supabase ou instância local) através de `DATABASE_URL`
 - **Supabase Storage é opcional**: sem credenciais, os ficheiros ficam em
   `public/uploads` e o sistema funciona normalmente em demonstração
 
@@ -77,6 +77,9 @@ TZ=Africa/Maputo
 UPLOAD_MAX_MB=5
 VIDEO_MAX_MB=5
 VIDEO_MAX_SEGUNDOS=15
+# PostgreSQL / Supabase (obrigatório)
+DATABASE_URL=postgresql://UTILIZADOR:PALAVRA_PASSE@HOST:5432/BASE_DE_DADOS
+DATABASE_SSL=true
 # Opcional: guardar ficheiros no Supabase Storage
 # SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 # SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
@@ -130,28 +133,28 @@ atalho quando o cliente os quiser usar.
 
 ## Base de dados e migrações
 
-O esquema base está em `src/db/schema.sql`. As alterações incrementais são
-aplicadas automaticamente no arranque por `src/db/migracoes.js`, que registra o
-que já foi aplicado na tabela `migracoes_aplicadas`.
+A aplicação usa **PostgreSQL** (Supabase ou local). A ligação é configurada por
+`DATABASE_URL`; `DATABASE_SSL=false` desativa o SSL num Postgres local.
 
-A migração **001** adiciona:
+Os ficheiros em `supabase/migrations/` são a única fonte de verdade do esquema:
 
-- `pratos.gostos` — contador de gostos;
-- `gostos_prato` — um gosto por `(prato_id, sessao_id)`, com `UNIQUE`;
-- índices para consulta por prato e por sessão.
+- `000_schema_inicial.sql` — tabelas, índices e tipos Postgres;
+- `001_gostos_prato.sql` — contador `pratos.gostos` e tabela `gostos_prato`;
+- `002_media_urls.sql` — `pratos.foto_url` e `pratos.video_url`;
+- `003_row_level_security.sql` — RLS ativa (sem políticas públicas; o servidor
+  liga-se com o papel proprietário);
+- `004_seed.sql` — dados de demonstração.
+
+Comandos:
+
+```bash
+npm run reset   # apaga e recria o esquema, e aplica o seed
+npm run seed    # aplica o seed sem apagar dados existentes
+```
 
 O endpoint `POST /api/pratos/:id/gosto` valida a sessão, alterna o gosto e
 devolve `{ gostou, gostos }`. A função `resumoSessao` inclui `pratos_gostados`,
 para a interface saber quais os pratos já gostados.
-
-O ficheiro `src/db/migrations/001_gostos_prato.sql` documenta a mesma migração
-para PostgreSQL/Supabase (tabela, índices, RPC `alternar_gosto` e notas de RLS).
-Não é executado pelo SQLite; serve de referência para a ligação futura ao Supabase.
-
-A migração **002** adiciona `pratos.foto_url` e `pratos.video_url` e preenche
-`foto_url` a partir da coluna antiga `foto`. A coluna `foto` continua a ser
-mantida em sincronia para compatibilidade. Referência PostgreSQL/Supabase em
-`src/db/migrations/002_media_urls.sql`.
 
 ## Supabase Storage (fotografias e vídeos)
 
@@ -203,10 +206,10 @@ src/
   routes/                rotas públicas e protegidas
   services/              mesas, pedidos, chamadas, gostos, armazenamento...
   db/
-    schema.sql           esquema base
-    migracoes.js         migrações incrementais
-    seed.js              dados de demonstração
-    reset.js             apaga e recria a base de dados
+    index.js             pool Postgres, query() e transacao()
+    seed.js              aplica supabase/migrations/004_seed.sql
+    reset.js             apaga e recria o esquema Postgres
+    schema.sql           referência histórica do esquema SQLite
   lib/                   utilidades, validação, imagens
 views/                   EJS (cliente, admin, cozinha, estados)
 public/
@@ -217,8 +220,8 @@ public/
   uploads/videos/        vídeos (quando não há Supabase)
   qrcodes/               QR codes gerados
 supabase/
+  migrations/            esquema Postgres e seed
   storage-policies.sql   buckets e políticas do Supabase Storage
-data/                    base de dados SQLite (não versionar)
 scripts/                 ativar mesas e testes de integração
 ```
 

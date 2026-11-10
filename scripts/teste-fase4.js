@@ -3,7 +3,7 @@
 
 const assert = require('assert');
 const bcrypt = require('bcrypt');
-const db = require('../src/db');
+const { query, pool } = require('../src/db');
 const { hojeLocal } = require('../src/services/relatorios');
 
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
@@ -44,10 +44,10 @@ async function json(resposta) {
   console.log('  ok  API de relatórios protegida');
 
   // Admin sem troca de password pendente para este teste.
-  db.prepare('UPDATE utilizadores SET password_hash = ?, deve_alterar_password = 0 WHERE username = ?').run(
+  await query('UPDATE utilizadores SET password_hash = $1, deve_alterar_password = FALSE WHERE username = $2', [
     bcrypt.hashSync('admin123', 12),
     'admin'
-  );
+  ]);
 
   const login = await pedir('/admin/login', {
     method: 'POST',
@@ -117,4 +117,4 @@ async function json(resposta) {
   console.error('FASE 4 FALHOU:', erro.message);
   console.error(erro);
   process.exit(1);
-});
+}).finally(() => pool.end());

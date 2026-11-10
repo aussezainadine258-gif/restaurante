@@ -1,6 +1,6 @@
 // APIs JSON do painel da gerência.
 const bcrypt = require('bcrypt');
-const db = require('../db');
+const { query } = require('../db');
 const config = require('../config');
 const mesas = require('../services/mesas');
 const pedidos = require('../services/pedidos');
@@ -41,110 +41,121 @@ function ficheiroEnviado(req, campo) {
   return Array.isArray(ficheiros) && ficheiros.length ? ficheiros[0] : null;
 }
 
-function obterPratoCompleto(id) {
-  const linha = db
-    .prepare(`
+async function obterPratoCompleto(id) {
+  const { rows } = await query(
+    `
       SELECT p.*, c.nome AS categoria_nome
       FROM pratos p JOIN categorias c ON c.id = p.categoria_id
-      WHERE p.id = ?
-    `)
-    .get(id);
-  return serializarPrato(linha);
+      WHERE p.id = $1
+    `,
+    [id]
+  );
+  return serializarPrato(rows[0]);
 }
 
 /* ------------------------------------------------------------------ pedidos */
 
-function painelPedidos(req, res) {
+async function painelPedidos(req, res) {
   const estado = String(req.query.estado || 'ativos');
-  const lista = pedidos.listarPedidos({ estado, limite: 200 });
+  const [lista, resumo, pendentes] = await Promise.all([
+    pedidos.listarPedidos({ estado, limite: 200 }),
+    pedidos.resumoPainel(),
+    chamadas.listarChamadas('pendente')
+  ]);
   return res.json({
     pedidos: lista,
-    resumo: pedidos.resumoPainel(),
-    chamadas: chamadas.listarChamadas('pendente')
+    resumo,
+    chamadas: pendentes
   });
 }
 
-function mudarEstadoPedido(req, res) {
+async function mudarEstadoPedido(req, res) {
   const id = validacao.id(req.params.id, 'pedido');
   const novo = String(req.body.estado || '');
   if (!ESTADOS_PEDIDO.includes(novo)) throw new ErroAplicacao('Estado inválido.', 400, 'estado');
-  const pedido = pedidos.atualizarEstado(id, novo);
+  const pedido = await pedidos.atualizarEstado(id, novo);
   realtime.pedidoAtualizado(pedido);
-  return res.json({ ok: true, pedido, resumo: pedidos.resumoPainel() });
+  return res.json({ ok: true, pedido, resumo: await pedidos.resumoPainel() });
 }
 
-function resolverChamada(req, res) {
+async function resolverChamada(req, res) {
   const id = validacao.id(req.params.id, 'chamada');
-  const chamada = chamadas.resolverChamada(id);
+  const chamada = await chamadas.resolverChamada(id);
   realtime.chamadaResolvida(chamada);
-  return res.json({ ok: true, chamada, resumo: pedidos.resumoPainel() });
+  return res.json({ ok: true, chamada, resumo: await pedidos.resumoPainel() });
 }
 
 /* --------------------------------------------------------------------- menu */
 
-function listarMenu(req, res) {
-  const categorias = db
-    .prepare(`
-      SELECT c.*, (SELECT COUNT(*) FROM pratos p WHERE p.categoria_id = c.id) AS total_pratos
+async function listarMenu(req, res) {
+  const [categoriasRes, pratosRes] = await Promise.all([
+    query(`
+      SELECT c.*, (SELECT COUNT(*)::int FROM pratos p WHERE p.categoria_id = c.id) AS total_pratos
       FROM categorias c ORDER BY c.ordem ASC, c.nome ASC
-    `)
-    .all()
-    .map((c) => ({ ...c, ativo: Boolean(c.ativo), total_pratos: c.total_pratos }));
-  const pratos = db
-    .prepare(`
+    `),
+    query(`
       SELECT p.*, c.nome AS categoria_nome
       FROM pratos p JOIN categorias c ON c.id = p.categoria_id
       ORDER BY c.ordem ASC, p.nome ASC
     `)
-    .all()
-    .map(serializarPrato);
+  ]);
+
+  const categorias = categoriasRes.rows.map((c) => ({
+    ...c,
+    ativo: Boolean(c.ativo),
+    total_pratos: Number(c.total_pratos) || 0
+  }));
+  const pratos = pratosRes.rows.map(serializarPrato);
   return res.json({ categorias, pratos });
 }
 
-function criarCategoria(req, res) {
+async function criarCategoria(req, res) {
   const nome = validacao.texto(req.body.nome, { min: 2, max: 40, obrigatorio: true, campo: 'nome' });
   const ordem = validacao.inteiro(req.body.ordem, { min: 0, max: 999, obrigatorio: false, campo: 'ordem' }) || 0;
-  const existente = db.prepare('SELECT id FROM categorias WHERE lower(nome) = lower(?)').get(nome);
-  if (existente) throw new ErroAplicacao('Já existe uma categoria com esse nome.', 409);
-  const info = db
-    .prepare('INSERT INTO categorias (nome, ordem, ativo, criado_em) VALUES (?, ?, 1, ?)')
-    .run(nome, ordem, new Date().toISOString());
+  const { rows: existentes } = await query('SELECT id FROM categorias WHERE lower(nome) = lower($1)', [nome]);
+  if (existentes[0]) throw new ErroAplicacao('Já existe uma categoria com esse nome.', 409);
+  const { rows } = await query(
+    'INSERT INTO categorias (nome, ordem, ativo, criado_em) VALUES ($1, $2, TRUE, $3) RETURNING id',
+    [nome, ordem, new Date().toISOString()]
+  );
   realtime.menuAtualizado();
   return res.status(201).json({
     ok: true,
-    categoria: { id: info.lastInsertRowid, nome, ordem, ativo: true, total_pratos: 0 }
+    categoria: { id: rows[0].id, nome, ordem, ativo: true, total_pratos: 0 }
   });
 }
 
-function atualizarCategoria(req, res) {
+async function atualizarCategoria(req, res) {
   const id = validacao.id(req.params.id, 'categoria');
-  const categoria = db.prepare('SELECT * FROM categorias WHERE id = ?').get(id);
+  const { rows: categorias } = await query('SELECT * FROM categorias WHERE id = $1', [id]);
+  const categoria = categorias[0];
   if (!categoria) throw new ErroAplicacao('Categoria não encontrada.', 404);
   const nome = validacao.texto(req.body.nome, { min: 2, max: 40, obrigatorio: true, campo: 'nome' });
   const ordem = validacao.inteiro(req.body.ordem, { min: 0, max: 999, obrigatorio: false, campo: 'ordem' }) || 0;
-  const duplicada = db
-    .prepare('SELECT id FROM categorias WHERE lower(nome) = lower(?) AND id != ?')
-    .get(nome, id);
-  if (duplicada) throw new ErroAplicacao('Já existe uma categoria com esse nome.', 409);
-  db.prepare('UPDATE categorias SET nome = ?, ordem = ? WHERE id = ?').run(nome, ordem, id);
+  const { rows: duplicadas } = await query(
+    'SELECT id FROM categorias WHERE lower(nome) = lower($1) AND id <> $2',
+    [nome, id]
+  );
+  if (duplicadas[0]) throw new ErroAplicacao('Já existe uma categoria com esse nome.', 409);
+  await query('UPDATE categorias SET nome = $1, ordem = $2 WHERE id = $3', [nome, ordem, id]);
   realtime.menuAtualizado();
   return res.json({ ok: true, categoria: { ...categoria, nome, ordem, ativo: Boolean(categoria.ativo) } });
 }
 
-function eliminarCategoria(req, res) {
+async function eliminarCategoria(req, res) {
   const id = validacao.id(req.params.id, 'categoria');
-  const categoria = db.prepare('SELECT * FROM categorias WHERE id = ?').get(id);
-  if (!categoria) throw new ErroAplicacao('Categoria não encontrada.', 404);
-  const total = db.prepare('SELECT COUNT(*) AS total FROM pratos WHERE categoria_id = ?').get(id).total;
-  if (total > 0) {
+  const { rows: categorias } = await query('SELECT * FROM categorias WHERE id = $1', [id]);
+  if (!categorias[0]) throw new ErroAplicacao('Categoria não encontrada.', 404);
+  const { rows } = await query('SELECT COUNT(*)::int AS total FROM pratos WHERE categoria_id = $1', [id]);
+  if (rows[0].total > 0) {
     throw new ErroAplicacao('Mova ou elimine os pratos desta categoria antes de a apagar.', 409);
   }
-  db.prepare('DELETE FROM categorias WHERE id = ?').run(id);
+  await query('DELETE FROM categorias WHERE id = $1', [id]);
   realtime.menuAtualizado();
   return res.json({ ok: true });
 }
 
-function camposDoPrato(req) {
+async function camposDoPrato(req) {
   const nome = validacao.texto(req.body.nome, { min: 2, max: 80, obrigatorio: true, campo: 'nome' });
   const descricao = validacao.textoLongo(req.body.descricao, { max: 300, campo: 'descrição' });
   const precoCentavos = validacao.precoParaCentavos(req.body.preco, 'preço');
@@ -155,27 +166,28 @@ function camposDoPrato(req) {
     campo: 'tempo de preparo'
   });
   const categoriaId = validacao.id(req.body.categoria_id, 'categoria');
-  const categoria = db.prepare('SELECT id FROM categorias WHERE id = ?').get(categoriaId);
-  if (!categoria) throw new ErroAplicacao('A categoria escolhida não existe.', 400, 'categoria');
+  const { rows } = await query('SELECT id FROM categorias WHERE id = $1', [categoriaId]);
+  if (!rows[0]) throw new ErroAplicacao('A categoria escolhida não existe.', 400, 'categoria');
   const etiquetas = validacao.etiquetas(req.body.etiquetas);
   const disponivel = validacao.booleano(req.body.disponivel);
   return { nome, descricao, precoCentavos, tempo, categoriaId, etiquetas, disponivel };
 }
 
 async function criarPrato(req, res) {
-  const campos = camposDoPrato(req);
+  const campos = await camposDoPrato(req);
   const fotoUrl = await guardarFoto(ficheiroEnviado(req, 'foto'));
   let videoUrl = null;
   try {
     videoUrl = await guardarVideo(ficheiroEnviado(req, 'video'));
     const agora = new Date().toISOString();
-    const info = db
-      .prepare(`
+    const { rows } = await query(
+      `
         INSERT INTO pratos
           (nome, descricao, preco_centavos, foto, foto_url, video_url, tempo_preparo, categoria_id, disponivel, etiquetas, criado_em, atualizado_em)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .run(
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+        RETURNING id
+      `,
+      [
         campos.nome,
         campos.descricao,
         campos.precoCentavos,
@@ -184,13 +196,13 @@ async function criarPrato(req, res) {
         videoUrl,
         campos.tempo,
         campos.categoriaId,
-        campos.disponivel ? 1 : 0,
+        campos.disponivel,
         JSON.stringify(campos.etiquetas),
-        agora,
         agora
-      );
+      ]
+    );
     realtime.menuAtualizado();
-    return res.status(201).json({ ok: true, prato: obterPratoCompleto(info.lastInsertRowid) });
+    return res.status(201).json({ ok: true, prato: await obterPratoCompleto(rows[0].id) });
   } catch (erro) {
     if (fotoUrl) await apagarMedia(fotoUrl);
     if (videoUrl) await apagarMedia(videoUrl);
@@ -200,9 +212,10 @@ async function criarPrato(req, res) {
 
 async function atualizarPrato(req, res) {
   const id = validacao.id(req.params.id, 'prato');
-  const atual = db.prepare('SELECT * FROM pratos WHERE id = ?').get(id);
+  const { rows: pratos } = await query('SELECT * FROM pratos WHERE id = $1', [id]);
+  const atual = pratos[0];
   if (!atual) throw new ErroAplicacao('Prato não encontrado.', 404);
-  const campos = camposDoPrato(req);
+  const campos = await camposDoPrato(req);
 
   const fotoAtual = atual.foto_url || atual.foto || null;
   const videoAtual = atual.video_url || null;
@@ -216,24 +229,27 @@ async function atualizarPrato(req, res) {
     const fotoFinal = novaFotoUrl || (removerFoto ? null : fotoAtual);
     const videoFinal = novoVideoUrl || (removerVideo ? null : videoAtual);
 
-    db.prepare(`
-      UPDATE pratos SET
-        nome = ?, descricao = ?, preco_centavos = ?, foto = ?, foto_url = ?, video_url = ?,
-        tempo_preparo = ?, categoria_id = ?, disponivel = ?, etiquetas = ?, atualizado_em = ?
-      WHERE id = ?
-    `).run(
-      campos.nome,
-      campos.descricao,
-      campos.precoCentavos,
-      fotoFinal,
-      fotoFinal,
-      videoFinal,
-      campos.tempo,
-      campos.categoriaId,
-      campos.disponivel ? 1 : 0,
-      JSON.stringify(campos.etiquetas),
-      new Date().toISOString(),
-      id
+    await query(
+      `
+        UPDATE pratos SET
+          nome = $1, descricao = $2, preco_centavos = $3, foto = $4, foto_url = $5, video_url = $6,
+          tempo_preparo = $7, categoria_id = $8, disponivel = $9, etiquetas = $10, atualizado_em = $11
+        WHERE id = $12
+      `,
+      [
+        campos.nome,
+        campos.descricao,
+        campos.precoCentavos,
+        fotoFinal,
+        fotoFinal,
+        videoFinal,
+        campos.tempo,
+        campos.categoriaId,
+        campos.disponivel,
+        JSON.stringify(campos.etiquetas),
+        new Date().toISOString(),
+        id
+      ]
     );
 
     // Só apaga o ficheiro antigo depois de a base de dados confirmar a mudança.
@@ -241,7 +257,7 @@ async function atualizarPrato(req, res) {
     if (videoAtual && videoAtual !== videoFinal) await apagarMedia(videoAtual);
 
     realtime.menuAtualizado();
-    return res.json({ ok: true, prato: obterPratoCompleto(id) });
+    return res.json({ ok: true, prato: await obterPratoCompleto(id) });
   } catch (erro) {
     if (novaFotoUrl) await apagarMedia(novaFotoUrl);
     if (novoVideoUrl) await apagarMedia(novoVideoUrl);
@@ -249,25 +265,26 @@ async function atualizarPrato(req, res) {
   }
 }
 
-function alternarDisponibilidade(req, res) {
+async function alternarDisponibilidade(req, res) {
   const id = validacao.id(req.params.id, 'prato');
-  const prato = db.prepare('SELECT * FROM pratos WHERE id = ?').get(id);
-  if (!prato) throw new ErroAplicacao('Prato não encontrado.', 404);
+  const { rows: pratos } = await query('SELECT * FROM pratos WHERE id = $1', [id]);
+  if (!pratos[0]) throw new ErroAplicacao('Prato não encontrado.', 404);
   const disponivel = validacao.booleano(req.body.disponivel);
-  db.prepare('UPDATE pratos SET disponivel = ?, atualizado_em = ? WHERE id = ?').run(
-    disponivel ? 1 : 0,
+  await query('UPDATE pratos SET disponivel = $1, atualizado_em = $2 WHERE id = $3', [
+    disponivel,
     new Date().toISOString(),
     id
-  );
+  ]);
   realtime.menuAtualizado();
-  return res.json({ ok: true, prato: obterPratoCompleto(id) });
+  return res.json({ ok: true, prato: await obterPratoCompleto(id) });
 }
 
 async function eliminarPrato(req, res) {
   const id = validacao.id(req.params.id, 'prato');
-  const prato = db.prepare('SELECT * FROM pratos WHERE id = ?').get(id);
+  const { rows: pratos } = await query('SELECT * FROM pratos WHERE id = $1', [id]);
+  const prato = pratos[0];
   if (!prato) throw new ErroAplicacao('Prato não encontrado.', 404);
-  db.prepare('DELETE FROM pratos WHERE id = ?').run(id);
+  await query('DELETE FROM pratos WHERE id = $1', [id]);
   await apagarMedia(prato.foto_url || prato.foto);
   await apagarMedia(prato.video_url);
   realtime.menuAtualizado();
@@ -276,16 +293,23 @@ async function eliminarPrato(req, res) {
 
 /* -------------------------------------------------------------------- mesas */
 
-function listarMesas(req, res) {
+async function listarMesas(req, res) {
+  const [lista, codigoAtivo] = await Promise.all([
+    mesas.listarMesas(),
+    configuracoes.codigoMesaAtivo()
+  ]);
   return res.json({
-    mesas: mesas.listarMesas(),
-    codigo_ativo: configuracoes.codigoMesaAtivo()
+    mesas: lista,
+    codigo_ativo: codigoAtivo
   });
 }
 
-function ativarMesa(req, res) {
+async function ativarMesa(req, res) {
   const id = validacao.id(req.params.id, 'mesa');
-  const resultado = mesas.ativarMesa(id);
+  const [resultado, codigoAtivo] = await Promise.all([
+    mesas.ativarMesa(id),
+    configuracoes.codigoMesaAtivo()
+  ]);
   realtime.mesaAtualizada({ id: resultado.mesa.id, numero: resultado.mesa.numero, ativa: true });
   return res.json({
     ok: true,
@@ -297,34 +321,36 @@ function ativarMesa(req, res) {
       ativa: true
     },
     sessao: { token: resultado.sessao.token, aberta_em: resultado.sessao.aberta_em },
-    codigo_ativo: configuracoes.codigoMesaAtivo()
+    codigo_ativo: codigoAtivo
   });
 }
 
-function contaDaMesa(req, res) {
+async function contaDaMesa(req, res) {
   const id = validacao.id(req.params.id, 'mesa');
-  const mesa = mesas.obterMesaPorId(id);
+  const [mesa, sessao] = await Promise.all([mesas.obterMesaPorId(id), mesas.obterSessaoAberta(id)]);
   if (!mesa) throw new ErroAplicacao('Mesa não encontrada.', 404);
-  const sessao = mesas.obterSessaoAberta(id);
   if (!sessao) {
     return res.json({
       aberta: false,
       mesa: { id: mesa.id, numero: mesa.numero, ativa: Boolean(mesa.ativa) }
     });
   }
-  const resumo = mesas.resumoPorToken(sessao.token);
+  const [resumo, pendentes] = await Promise.all([
+    mesas.resumoPorToken(sessao.token),
+    chamadas.listarChamadas('pendente')
+  ]);
   return res.json({
     aberta: true,
     mesa: { id: mesa.id, numero: mesa.numero, ativa: Boolean(mesa.ativa) },
     resumo,
-    chamadas: chamadas.listarChamadas('pendente').filter((c) => c.mesa_id === id)
+    chamadas: pendentes.filter((c) => c.mesa_id === id)
   });
 }
 
-function fecharMesa(req, res) {
+async function fecharMesa(req, res) {
   const id = validacao.id(req.params.id, 'mesa');
   const forcar = validacao.booleano(req.body.forcar);
-  const resultado = mesas.fecharMesa(id, forcar);
+  const resultado = await mesas.fecharMesa(id, forcar);
   if (!resultado.jaFechada) {
     realtime.sessaoFechada(resultado.sessao.token, {
       mesa_numero: resultado.mesa.numero,
@@ -342,14 +368,14 @@ function fecharMesa(req, res) {
 
 /* --------------------------------------------------------------- definições */
 
-function obterConfiguracoes(req, res) {
+async function obterConfiguracoes(req, res) {
   return res.json({
-    ...configuracoes.listar(),
+    ...(await configuracoes.listar()),
     base_url: config.baseUrl
   });
 }
 
-function guardarConfiguracoes(req, res) {
+async function guardarConfiguracoes(req, res) {
   const nome = validacao.texto(req.body.nome_restaurante, {
     min: 2,
     max: 60,
@@ -357,23 +383,27 @@ function guardarConfiguracoes(req, res) {
     campo: 'nome do restaurante'
   });
   const codigoAtivo = validacao.booleano(req.body.codigo_mesa_ativo);
-  configuracoes.definir('nome_restaurante', nome);
-  configuracoes.definir('codigo_mesa_ativo', codigoAtivo ? '1' : '0');
+  await configuracoes.definirVarios({
+    nome_restaurante: nome,
+    codigo_mesa_ativo: codigoAtivo ? '1' : '0'
+  });
   realtime.configuracoesAtualizadas();
   return res.json({
     ok: true,
-    configuracoes: { ...configuracoes.listar(), base_url: config.baseUrl }
+    configuracoes: { ...(await configuracoes.listar()), base_url: config.baseUrl }
   });
 }
 
-function listarUtilizadores(req, res) {
-  const lista = db
-    .prepare(`
-      SELECT id, nome, username, papel, deve_alterar_password, ativo, criado_em
-      FROM utilizadores ORDER BY papel ASC, nome ASC
-    `)
-    .all()
-    .map((u) => ({ ...u, ativo: Boolean(u.ativo), deve_alterar_password: Boolean(u.deve_alterar_password) }));
+async function listarUtilizadores(req, res) {
+  const { rows } = await query(`
+    SELECT id, nome, username, papel, deve_alterar_password, ativo, criado_em
+    FROM utilizadores ORDER BY papel ASC, nome ASC
+  `);
+  const lista = rows.map((u) => ({
+    ...u,
+    ativo: Boolean(u.ativo),
+    deve_alterar_password: Boolean(u.deve_alterar_password)
+  }));
   return res.json({ utilizadores: lista });
 }
 
@@ -392,22 +422,27 @@ async function criarUtilizador(req, res) {
   if (password.length > 72) throw new ErroAplicacao('A password é demasiado longa.', 400, 'password');
   if (!['admin', 'cozinha'].includes(papel)) throw new ErroAplicacao('Papel inválido.', 400, 'papel');
 
-  const existente = db.prepare('SELECT id FROM utilizadores WHERE lower(username) = lower(?)').get(username);
-  if (existente) throw new ErroAplicacao('Já existe um utilizador com esse nome.', 409, 'username');
+  const { rows: existentes } = await query(
+    'SELECT id FROM utilizadores WHERE lower(username) = lower($1)',
+    [username]
+  );
+  if (existentes[0]) throw new ErroAplicacao('Já existe um utilizador com esse nome.', 409, 'username');
 
   const hash = await bcrypt.hash(password, 12);
-  const info = db
-    .prepare(`
+  const { rows } = await query(
+    `
       INSERT INTO utilizadores (nome, username, password_hash, papel, deve_alterar_password, ativo, criado_em)
-      VALUES (?, ?, ?, ?, 1, 1, ?)
-    `)
-    .run(nome, username, hash, papel, new Date().toISOString());
+      VALUES ($1, $2, $3, $4, TRUE, TRUE, $5)
+      RETURNING id
+    `,
+    [nome, username, hash, papel, new Date().toISOString()]
+  );
 
   realtime.utilizadoresAtualizados();
   return res.status(201).json({
     ok: true,
     utilizador: {
-      id: info.lastInsertRowid,
+      id: rows[0].id,
       nome,
       username,
       papel,
@@ -417,9 +452,10 @@ async function criarUtilizador(req, res) {
   });
 }
 
-function alternarUtilizador(req, res) {
+async function alternarUtilizador(req, res) {
   const id = validacao.id(req.params.id, 'utilizador');
-  const utilizador = db.prepare('SELECT * FROM utilizadores WHERE id = ?').get(id);
+  const { rows: utilizadores } = await query('SELECT * FROM utilizadores WHERE id = $1', [id]);
+  const utilizador = utilizadores[0];
   if (!utilizador) throw new ErroAplicacao('Utilizador não encontrado.', 404);
   const ativo = validacao.booleano(req.body.ativo);
 
@@ -427,27 +463,34 @@ function alternarUtilizador(req, res) {
     throw new ErroAplicacao('Não pode desativar a sua própria conta.', 400);
   }
   if (!ativo && utilizador.papel === 'admin') {
-    const admins = db.prepare("SELECT COUNT(*) AS total FROM utilizadores WHERE papel = 'admin' AND ativo = 1").get().total;
-    if (admins <= 1) throw new ErroAplicacao('Tem de existir pelo menos um administrador ativo.', 409);
+    const { rows } = await query(
+      "SELECT COUNT(*)::int AS total FROM utilizadores WHERE papel = 'admin' AND ativo = TRUE"
+    );
+    if (rows[0].total <= 1) throw new ErroAplicacao('Tem de existir pelo menos um administrador ativo.', 409);
   }
 
-  db.prepare('UPDATE utilizadores SET ativo = ? WHERE id = ?').run(ativo ? 1 : 0, id);
+  await query('UPDATE utilizadores SET ativo = $1 WHERE id = $2', [ativo, id]);
   realtime.utilizadoresAtualizados();
   return res.json({
     ok: true,
-    utilizador: { ...utilizador, password_hash: undefined, ativo, deve_alterar_password: Boolean(utilizador.deve_alterar_password) }
+    utilizador: {
+      ...utilizador,
+      password_hash: undefined,
+      ativo,
+      deve_alterar_password: Boolean(utilizador.deve_alterar_password)
+    }
   });
 }
 
 async function reporPassword(req, res) {
   const id = validacao.id(req.params.id, 'utilizador');
-  const utilizador = db.prepare('SELECT * FROM utilizadores WHERE id = ?').get(id);
-  if (!utilizador) throw new ErroAplicacao('Utilizador não encontrado.', 404);
+  const { rows: utilizadores } = await query('SELECT * FROM utilizadores WHERE id = $1', [id]);
+  if (!utilizadores[0]) throw new ErroAplicacao('Utilizador não encontrado.', 404);
   const password = String(req.body.password || '');
   if (password.length < 8) throw new ErroAplicacao('A password deve ter pelo menos 8 caracteres.', 400, 'password');
   if (password.length > 72) throw new ErroAplicacao('A password é demasiado longa.', 400, 'password');
   const hash = await bcrypt.hash(password, 12);
-  db.prepare('UPDATE utilizadores SET password_hash = ?, deve_alterar_password = 1 WHERE id = ?').run(hash, id);
+  await query('UPDATE utilizadores SET password_hash = $1, deve_alterar_password = TRUE WHERE id = $2', [hash, id]);
   realtime.utilizadoresAtualizados();
   return res.json({ ok: true, mensagem: 'Password reposta. O utilizador terá de a alterar no próximo login.' });
 }

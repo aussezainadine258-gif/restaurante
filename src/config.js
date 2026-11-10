@@ -38,7 +38,6 @@ module.exports = {
     uploads: path.join(rootDir, 'public', 'uploads', 'pratos'),
     videos: path.join(rootDir, 'public', 'uploads', 'videos'),
     qrcodes: path.join(rootDir, 'public', 'qrcodes'),
-    views: path.join(rootDir, 'views'),
-    db: path.join(rootDir, 'data', 'restaurante.db')
+    views: path.join(rootDir, 'views')
   }
 };

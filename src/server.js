@@ -5,6 +5,7 @@ const config = require('./config');
 const { app, sessionMiddleware } = require('./app');
 const { configurarSocket } = require('./socket');
 const realtime = require('./lib/realtime');
+const { pool } = require('./db');
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -30,7 +31,15 @@ server.listen(config.port, () => {
 function encerrar() {
   console.log('\nA encerrar o servidor...');
   io.close();
-  server.close(() => process.exit(0));
+  server.close(async () => {
+    try {
+      await pool.end();
+    } catch (erro) {
+      console.error('Falha ao fechar a ligação Postgres:', erro);
+    } finally {
+      process.exit(0);
+    }
+  });
   setTimeout(() => process.exit(1), 5000).unref();
 }
 

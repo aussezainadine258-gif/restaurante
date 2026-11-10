@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const bcrypt = require('bcrypt');
-const db = require('../src/db');
+const { query, pool } = require('../src/db');
 
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const armazenamentoLocal = !process.env.SUPABASE_URL;
@@ -60,14 +60,15 @@ async function json(resposta) {
   console.log('FASE 2 — teste do painel');
 
   // Estado inicial conhecido: admin volta à password inicial e mesa 1 fica livre.
-  db.prepare('UPDATE utilizadores SET password_hash = ?, deve_alterar_password = 1 WHERE username = ?').run(
+  await query('UPDATE utilizadores SET password_hash = $1, deve_alterar_password = TRUE WHERE username = $2', [
     bcrypt.hashSync('admin123', 12),
     'admin'
+  ]);
+  await query(
+    "UPDATE sessoes_mesa SET estado = 'fechada', fechada_em = $1 WHERE mesa_id = 1 AND estado = 'aberta'",
+    [new Date()]
   );
-  db.prepare("UPDATE sessoes_mesa SET estado = 'fechada', fechada_em = ? WHERE mesa_id = 1 AND estado = 'aberta'").run(
-    new Date().toISOString()
-  );
-  db.prepare('UPDATE mesas SET ativa = 0, codigo = NULL WHERE id = 1').run();
+  await query('UPDATE mesas SET ativa = FALSE, codigo = NULL WHERE id = 1');
 
   const semSessao = await pedir('/admin/api/pedidos');
   assert.strictEqual(semSessao.status, 401, 'API deve exigir sessão');
@@ -341,4 +342,4 @@ async function json(resposta) {
   console.error('FASE 2 FALHOU:', erro.message);
   console.error(erro);
   process.exit(1);
-});
+}).finally(() => pool.end());

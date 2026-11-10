@@ -1,28 +1,27 @@
-// Guarda as sessões do painel na própria base de dados SQLite.
+// Guarda as sessões do painel numa tabela Postgres.
 // Evita o aviso de MemoryStore do express-session e mantém os logins
 // após reiniciar o servidor.
 const session = require('express-session');
+const { query } = require('../db');
 
-class StoreSQLite extends session.Store {
-  constructor(db) {
+const SQL_LER = 'SELECT sess, expira_em FROM sessoes_web WHERE sid = $1';
+const SQL_GRAVAR = `
+  INSERT INTO sessoes_web (sid, sess, expira_em) VALUES ($1, $2, $3)
+  ON CONFLICT (sid) DO UPDATE SET sess = EXCLUDED.sess, expira_em = EXCLUDED.expira_em
+`;
+const SQL_APAGAR = 'DELETE FROM sessoes_web WHERE sid = $1';
+const SQL_EXPIRAR = 'UPDATE sessoes_web SET expira_em = $1 WHERE sid = $2';
+const SQL_LIMPAR = 'DELETE FROM sessoes_web WHERE expira_em < $1';
+
+class StorePostgres extends session.Store {
+  constructor() {
     super();
-    this.db = db;
-    this.stmtLer = db.prepare('SELECT sess, expira_em FROM sessoes_web WHERE sid = ?');
-    this.stmtGravar = db.prepare(`
-      INSERT INTO sessoes_web (sid, sess, expira_em) VALUES (?, ?, ?)
-      ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expira_em = excluded.expira_em
-    `);
-    this.stmtApagar = db.prepare('DELETE FROM sessoes_web WHERE sid = ?');
-    this.stmtExpirar = db.prepare('UPDATE sessoes_web SET expira_em = ? WHERE sid = ?');
-    this.stmtLimpar = db.prepare('DELETE FROM sessoes_web WHERE expira_em < ?');
 
     // Limpeza periódica (a cada 30 minutos).
     this.timer = setInterval(() => {
-      try {
-        this.stmtLimpar.run(Date.now());
-      } catch {
+      query(SQL_LIMPAR, [Date.now()]).catch(() => {
         /* ignora falhas de limpeza */
-      }
+      });
     }, 30 * 60 * 1000);
     this.timer.unref();
   }
@@ -34,45 +33,49 @@ class StoreSQLite extends session.Store {
   }
 
   get(sid, callback) {
-    try {
-      const linha = this.stmtLer.get(sid);
-      if (!linha) return callback(null, null);
-      if (linha.expira_em < Date.now()) {
-        this.stmtApagar.run(sid);
-        return callback(null, null);
-      }
-      return callback(null, JSON.parse(linha.sess));
-    } catch (erro) {
-      return callback(erro);
-    }
+    query(SQL_LER, [sid])
+      .then(({ rows }) => {
+        const linha = rows[0];
+        if (!linha) return callback(null, null);
+        if (Number(linha.expira_em) < Date.now()) {
+          return query(SQL_APAGAR, [sid]).then(
+            () => callback(null, null),
+            (erro) => callback(erro)
+          );
+        }
+        try {
+          return callback(null, JSON.parse(linha.sess));
+        } catch {
+          // Sessão ilegível: apaga e trata como inexistente.
+          return query(SQL_APAGAR, [sid]).then(
+            () => callback(null, null),
+            (erro) => callback(erro)
+          );
+        }
+      })
+      .catch((erro) => callback(erro));
   }
 
   set(sid, sess, callback) {
-    try {
-      this.stmtGravar.run(sid, JSON.stringify(sess), this.expiracao(sess));
-      return callback(null);
-    } catch (erro) {
-      return callback(erro);
-    }
+    query(SQL_GRAVAR, [sid, JSON.stringify(sess), this.expiracao(sess)]).then(
+      () => callback(null),
+      (erro) => callback(erro)
+    );
   }
 
   destroy(sid, callback) {
-    try {
-      this.stmtApagar.run(sid);
-      return callback(null);
-    } catch (erro) {
-      return callback(erro);
-    }
+    query(SQL_APAGAR, [sid]).then(
+      () => callback(null),
+      (erro) => callback(erro)
+    );
   }
 
   touch(sid, sess, callback) {
-    try {
-      this.stmtExpirar.run(this.expiracao(sess), sid);
-      return callback(null);
-    } catch (erro) {
-      return callback(erro);
-    }
+    query(SQL_EXPIRAR, [this.expiracao(sess), sid]).then(
+      () => callback(null),
+      (erro) => callback(erro)
+    );
   }
 }
 
-module.exports = StoreSQLite;
+module.exports = StorePostgres;

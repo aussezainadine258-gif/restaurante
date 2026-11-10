@@ -6,7 +6,11 @@
 // DATABASE_SSL=false permite ligar a um Postgres local sem SSL.
 require('dotenv').config();
 
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// O Postgres devolve BIGINT como string. IDs, cêntimos e contadores cabem
+// confortavelmente no Number do JavaScript, por isso normalizamos aqui.
+types.setTypeParser(20, (valor) => Number(valor));
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

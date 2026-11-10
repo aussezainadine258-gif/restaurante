@@ -12,24 +12,32 @@ function paginaCozinha(req, res) {
   });
 }
 
-function apiPedidos(req, res) {
-  const lista = pedidos.listarPedidosCozinha();
-  return res.json({
-    pedidos: lista,
-    resumo: pedidos.resumoPainel(),
-    atualizado_em: new Date().toISOString()
-  });
+async function apiPedidos(req, res, next) {
+  try {
+    const [lista, resumo] = await Promise.all([pedidos.listarPedidosCozinha(), pedidos.resumoPainel()]);
+    return res.json({
+      pedidos: lista,
+      resumo,
+      atualizado_em: new Date().toISOString()
+    });
+  } catch (erro) {
+    return next(erro);
+  }
 }
 
-function apiMudarEstado(req, res) {
-  const id = validacao.id(req.params.id, 'pedido');
-  const novo = String(req.body.estado || '');
-  if (!ESTADOS_PEDIDO.includes(novo)) {
-    throw new ErroAplicacao('Estado inválido.', 400, 'estado');
+async function apiMudarEstado(req, res, next) {
+  try {
+    const id = validacao.id(req.params.id, 'pedido');
+    const novo = String(req.body.estado || '');
+    if (!ESTADOS_PEDIDO.includes(novo)) {
+      throw new ErroAplicacao('Estado inválido.', 400, 'estado');
+    }
+    const pedido = await pedidos.atualizarEstado(id, novo);
+    realtime.pedidoAtualizado(pedido);
+    return res.json({ ok: true, pedido, resumo: await pedidos.resumoPainel() });
+  } catch (erro) {
+    return next(erro);
   }
-  const pedido = pedidos.atualizarEstado(id, novo);
-  realtime.pedidoAtualizado(pedido);
-  return res.json({ ok: true, pedido, resumo: pedidos.resumoPainel() });
 }
 
 module.exports = { paginaCozinha, apiPedidos, apiMudarEstado };

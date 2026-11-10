@@ -28,9 +28,12 @@ function tratarErro(erro, req, res, next) {
 
   if (erro instanceof ErroValidacao) {
     status = 400;
-  } else if (erro && erro.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+  } else if (erro && erro.code === '23505') {
     status = 409;
     mensagem = 'Já existe um registo com esses dados.';
+  } else if (erro && erro.code === '23503') {
+    status = 409;
+    mensagem = 'Não é possível concluir: existem registos associados a este elemento.';
   } else if (erro && erro.code === 'LIMIT_FILE_SIZE') {
     status = 413;
     mensagem =

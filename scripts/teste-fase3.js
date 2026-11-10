@@ -3,7 +3,7 @@
 
 const assert = require('assert');
 const crypto = require('crypto');
-const db = require('../src/db');
+const { query, pool } = require('../src/db');
 
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 let cookie = '';
@@ -37,20 +37,22 @@ async function json(resposta) {
   console.log('FASE 3 — teste do ecrã da cozinha');
 
   // Garante uma mesa ativa com sessão aberta para testar o fluxo público.
-  const mesa = db.prepare('SELECT * FROM mesas WHERE numero = 5').get();
+  const { rows: mesasRows } = await query('SELECT * FROM mesas WHERE numero = 5');
+  const mesa = mesasRows[0];
   const codigo = mesa.codigo || '5000';
-  db.prepare('UPDATE mesas SET ativa = 1, codigo = ? WHERE id = ?').run(codigo, mesa.id);
-  let sessao = db
-    .prepare("SELECT * FROM sessoes_mesa WHERE mesa_id = ? AND estado = 'aberta' ORDER BY id DESC LIMIT 1")
-    .get(mesa.id);
+  await query('UPDATE mesas SET ativa = TRUE, codigo = $1 WHERE id = $2', [codigo, mesa.id]);
+  const { rows: abertas } = await query(
+    "SELECT * FROM sessoes_mesa WHERE mesa_id = $1 AND estado = 'aberta' ORDER BY id DESC LIMIT 1",
+    [mesa.id]
+  );
+  let sessao = abertas[0];
   if (!sessao) {
     const token = crypto.randomBytes(24).toString('hex');
-    db.prepare("INSERT INTO sessoes_mesa (mesa_id, token, aberta_em, estado) VALUES (?, ?, ?, 'aberta')").run(
-      mesa.id,
-      token,
-      new Date().toISOString()
+    const { rows } = await query(
+      "INSERT INTO sessoes_mesa (mesa_id, token, aberta_em, estado) VALUES ($1, $2, $3, 'aberta') RETURNING *",
+      [mesa.id, token, new Date()]
     );
-    sessao = db.prepare('SELECT * FROM sessoes_mesa WHERE token = ?').get(token);
+    sessao = rows[0];
   }
 
   const verificar = await json(
@@ -59,7 +61,7 @@ async function json(resposta) {
   assert.strictEqual(verificar.status, 200);
   const token = verificar.dados.sessao.token;
 
-  const pratos = db.prepare('SELECT id FROM pratos WHERE disponivel = 1 ORDER BY id LIMIT 2').all();
+  const { rows: pratos } = await query('SELECT id FROM pratos WHERE disponivel = TRUE ORDER BY id LIMIT 2');
   const criar = await json(
     await pedir('/api/pedidos', {
       method: 'POST',
@@ -147,4 +149,4 @@ async function json(resposta) {
   console.error('FASE 3 FALHOU:', erro.message);
   console.error(erro);
   process.exit(1);
-});
+}).finally(() => pool.end());

@@ -1,13 +1,11 @@
 // Leitura/escrita das definições guardadas na base de dados.
-const db = require('../db');
+const { query, transacao } = require('../db');
 const config = require('../config');
 
-const stmtLer = db.prepare('SELECT valor FROM configuracoes WHERE chave = ?');
-const stmtGravar = db.prepare(`
-  INSERT INTO configuracoes (chave, valor) VALUES (?, ?)
-  ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor
-`);
-const stmtListar = db.prepare('SELECT chave, valor FROM configuracoes ORDER BY chave');
+const SQL_GRAVAR = `
+  INSERT INTO configuracoes (chave, valor) VALUES ($1, $2)
+  ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor
+`;
 
 const PADROES = {
   nome_restaurante: config.restaurantName,
@@ -15,32 +13,42 @@ const PADROES = {
   som_admin: '1'
 };
 
-function obter(chave, padrao = null) {
-  const linha = stmtLer.get(chave);
-  if (!linha) return padrao !== null ? padrao : PADROES[chave] != null ? PADROES[chave] : null;
-  return linha.valor;
+async function obter(chave, padrao = null) {
+  const { rows } = await query('SELECT valor FROM configuracoes WHERE chave = $1', [chave]);
+  if (!rows[0]) return padrao !== null ? padrao : PADROES[chave] != null ? PADROES[chave] : null;
+  return rows[0].valor;
 }
 
-function obterBooleano(chave, padrao = false) {
-  const valor = obter(chave, padrao ? '1' : '0');
+async function obterBooleano(chave, padrao = false) {
+  const valor = await obter(chave, padrao ? '1' : '0');
   return String(valor) === '1';
 }
 
-function definir(chave, valor) {
-  stmtGravar.run(String(chave), String(valor));
+async function definir(chave, valor) {
+  await query(SQL_GRAVAR, [String(chave), String(valor)]);
 }
 
-function listar() {
-  const valores = Object.fromEntries(stmtListar.all().map((l) => [l.chave, l.valor]));
+// Grava várias definições de forma atómica.
+async function definirVarios(valores) {
+  await transacao(async (cliente) => {
+    for (const [chave, valor] of Object.entries(valores)) {
+      await cliente.query(SQL_GRAVAR, [String(chave), String(valor)]);
+    }
+  });
+}
+
+async function listar() {
+  const { rows } = await query('SELECT chave, valor FROM configuracoes ORDER BY chave');
+  const valores = Object.fromEntries(rows.map((linha) => [linha.chave, linha.valor]));
   return { ...PADROES, ...valores };
 }
 
-function nomeRestaurante() {
+async function nomeRestaurante() {
   return obter('nome_restaurante', config.restaurantName);
 }
 
-function codigoMesaAtivo() {
+async function codigoMesaAtivo() {
   return obterBooleano('codigo_mesa_ativo', config.codigoMesaAtivoDefault);
 }
 
-module.exports = { obter, obterBooleano, definir, listar, nomeRestaurante, codigoMesaAtivo };
+module.exports = { obter, obterBooleano, definir, definirVarios, listar, nomeRestaurante, codigoMesaAtivo };

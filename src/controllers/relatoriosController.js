@@ -8,8 +8,12 @@ function paginaRelatorios(req, res) {
   });
 }
 
-function apiRelatorios(req, res) {
-  return res.json(relatorios.gerarRelatorio(req.query.data));
+async function apiRelatorios(req, res, next) {
+  try {
+    return res.json(await relatorios.gerarRelatorio(req.query.data));
+  } catch (erro) {
+    return next(erro);
+  }
 }
 
 module.exports = { paginaRelatorios, apiRelatorios };

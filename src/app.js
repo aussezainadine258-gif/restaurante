@@ -4,8 +4,7 @@ const path = require('path');
 const express = require('express');
 const session = require('express-session');
 const config = require('./config');
-const db = require('./db');
-const StoreSQLite = require('./lib/session-store');
+const StorePostgres = require('./lib/session-store');
 const { carregarUtilizador } = require('./middleware/auth');
 const { cabecalhosSeguranca } = require('./middleware/seguranca');
 const { tratarErro, naoEncontrado } = require('./middleware/erros');
@@ -37,7 +36,7 @@ app.use(express.json({ limit: '150kb' }));
 
 const sessionMiddleware = session({
   name: 'sley.sid',
-  store: new StoreSQLite(db),
+  store: new StorePostgres(),
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
@@ -54,18 +53,22 @@ app.use(sessionMiddleware);
 app.use(carregarUtilizador);
 
 // Variáveis disponíveis em todas as views.
-app.use((req, res, next) => {
-  res.locals.restaurante = configuracoes.nomeRestaurante();
-  res.locals.ano = new Date().getFullYear();
-  res.locals.caminho = req.path;
-  res.locals.utilizador = req.utilizador || null;
-  res.locals.titulo = 'Restaurante';
-  res.locals.slugify = slugify;
-  res.locals.horaLocal = horaLocal;
-  res.locals.dataHoraLocal = dataHoraLocal;
-  res.locals.formatarMZN = formatarMZN;
-  res.locals.flash = req.session ? consumirFlash(req) : null;
-  next();
+app.use(async (req, res, next) => {
+  try {
+    res.locals.restaurante = await configuracoes.nomeRestaurante();
+    res.locals.ano = new Date().getFullYear();
+    res.locals.caminho = req.path;
+    res.locals.utilizador = req.utilizador || null;
+    res.locals.titulo = 'Restaurante';
+    res.locals.slugify = slugify;
+    res.locals.horaLocal = horaLocal;
+    res.locals.dataHoraLocal = dataHoraLocal;
+    res.locals.formatarMZN = formatarMZN;
+    res.locals.flash = req.session ? consumirFlash(req) : null;
+    next();
+  } catch (erro) {
+    next(erro);
+  }
 });
 
 app.use('/', rotasPublicas);

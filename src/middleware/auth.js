@@ -1,27 +1,33 @@
 // Middleware de autenticação e autorização do painel e da cozinha.
-const db = require('../db');
+const { query } = require('../db');
 const { ErroAplicacao } = require('../lib/erros');
 
 // Mantém a sessão sincronizada com a base de dados (utilizador desativado, etc.).
-function carregarUtilizador(req, res, next) {
-  const guardado = req.session && req.session.utilizador;
-  if (!guardado) {
-    req.utilizador = null;
-    res.locals.utilizador = null;
+async function carregarUtilizador(req, res, next) {
+  try {
+    const guardado = req.session && req.session.utilizador;
+    if (!guardado) {
+      req.utilizador = null;
+      res.locals.utilizador = null;
+      return next();
+    }
+    const { rows } = await query(
+      'SELECT id, nome, username, papel, deve_alterar_password, ativo FROM utilizadores WHERE id = $1',
+      [guardado.id]
+    );
+    const user = rows[0];
+    if (!user || !user.ativo) {
+      delete req.session.utilizador;
+      req.utilizador = null;
+      res.locals.utilizador = null;
+      return next();
+    }
+    req.utilizador = user;
+    res.locals.utilizador = user;
     return next();
+  } catch (erro) {
+    return next(erro);
   }
-  const user = db
-    .prepare('SELECT id, nome, username, papel, deve_alterar_password, ativo FROM utilizadores WHERE id = ?')
-    .get(guardado.id);
-  if (!user || !user.ativo) {
-    delete req.session.utilizador;
-    req.utilizador = null;
-    res.locals.utilizador = null;
-    return next();
-  }
-  req.utilizador = user;
-  res.locals.utilizador = user;
-  return next();
 }
 
 function querJSON(req) {

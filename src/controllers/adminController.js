@@ -1,7 +1,7 @@
 // Autenticação do painel, gestão da password, páginas e QR codes.
 const bcrypt = require('bcrypt');
 const qrcode = require('qrcode');
-const db = require('../db');
+const { query } = require('../db');
 const config = require('../config');
 const mesas = require('../services/mesas');
 const configuracoes = require('../services/configuracoes');
@@ -53,7 +53,8 @@ async function login(req, res, next) {
       });
     }
 
-    const utilizador = db.prepare('SELECT * FROM utilizadores WHERE username = ?').get(username);
+    const { rows } = await query('SELECT * FROM utilizadores WHERE username = $1', [username]);
+    const utilizador = rows[0];
     const valida = await bcrypt.compare(password, utilizador ? utilizador.password_hash : HASH_FALSO);
 
     if (!utilizador || !utilizador.ativo || !valida) {
@@ -107,7 +108,8 @@ async function alterarPassword(req, res, next) {
     const atual = String(req.body.password_atual || '');
     const nova = String(req.body.password_nova || '');
     const confirmar = String(req.body.password_confirmar || '');
-    const utilizador = db.prepare('SELECT * FROM utilizadores WHERE id = ?').get(req.utilizador.id);
+    const { rows } = await query('SELECT * FROM utilizadores WHERE id = $1', [req.utilizador.id]);
+    const utilizador = rows[0];
 
     const renderErro = (mensagem) =>
       res.status(400).render('admin/password', { titulo: 'Alterar password', erro: mensagem });
@@ -124,10 +126,10 @@ async function alterarPassword(req, res, next) {
     if (!confere) return renderErro('A password atual está incorreta.');
 
     const hash = await bcrypt.hash(nova, 12);
-    db.prepare('UPDATE utilizadores SET password_hash = ?, deve_alterar_password = 0 WHERE id = ?').run(
+    await query('UPDATE utilizadores SET password_hash = $1, deve_alterar_password = FALSE WHERE id = $2', [
       hash,
       utilizador.id
-    );
+    ]);
     definirFlash(req, 'sucesso', 'Password atualizada com sucesso.');
     return res.redirect(utilizador.papel === 'admin' ? '/admin' : '/cozinha');
   } catch (erro) {
@@ -135,17 +137,25 @@ async function alterarPassword(req, res, next) {
   }
 }
 
-function painel(req, res) {
-  return res.render('admin/painel', {
-    titulo: 'Painel',
-    configs: configuracoes.listar(),
-    baseUrl: config.baseUrl,
-    codigoMesaAtivo: configuracoes.codigoMesaAtivo(),
-    uploadMaxMb: config.uploadMaxMb,
-    videoMaxMb: config.videoMaxMb,
-    videoMaxSegundos: config.videoMaxSegundos,
-    supabaseAtivo: config.supabase.ativo
-  });
+async function painel(req, res, next) {
+  try {
+    const [configs, codigoMesaAtivo] = await Promise.all([
+      configuracoes.listar(),
+      configuracoes.codigoMesaAtivo()
+    ]);
+    return res.render('admin/painel', {
+      titulo: 'Painel',
+      configs,
+      baseUrl: config.baseUrl,
+      codigoMesaAtivo,
+      uploadMaxMb: config.uploadMaxMb,
+      videoMaxMb: config.videoMaxMb,
+      videoMaxSegundos: config.videoMaxSegundos,
+      supabaseAtivo: config.supabase.ativo
+    });
+  } catch (erro) {
+    return next(erro);
+  }
 }
 
 function urlDoMenu(numeroMesa) {
@@ -162,7 +172,7 @@ const OPCOES_QR = {
 async function qrcodeMesa(req, res, next) {
   try {
     const id = validacao.id(req.params.id, 'mesa');
-    const mesa = mesas.obterMesaPorId(id);
+    const mesa = await mesas.obterMesaPorId(id);
     if (!mesa) throw new ErroAplicacao('Mesa não encontrada.', 404);
     const imagem = await qrcode.toBuffer(urlDoMenu(mesa.numero), { ...OPCOES_QR, type: 'png' });
     res.setHeader('Content-Type', 'image/png');
@@ -176,7 +186,7 @@ async function qrcodeMesa(req, res, next) {
 
 async function qrcodesParaImprimir(req, res, next) {
   try {
-    const lista = mesas.listarMesas();
+    const lista = await mesas.listarMesas();
     const cartoes = await Promise.all(
       lista.map(async (mesa) => ({
         ...mesa,
